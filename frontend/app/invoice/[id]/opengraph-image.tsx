@@ -1,44 +1,24 @@
-import { ImageResponse } from 'next/og';
+import { getInvoice } from '@/lib/contracts';
+import { OG_IMAGE_SIZE, renderBrandOgImage } from '@/lib/og-image';
 
 export const alt = 'Astera Invoice';
-export const size = { width: 1200, height: 630 };
+export const size = OG_IMAGE_SIZE;
 export const contentType = 'image/png';
 
+// #765: dynamic per-invoice OG image showing amount, token, and status, so
+// shared invoice links render a rich preview instead of the generic
+// site-wide default.
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  return new ImageResponse(
-    (
-      <div
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: '#0b0b0d',
-          color: '#ffffff',
-          fontFamily: 'Helvetica, Arial, sans-serif',
-        }}
-      >
-        <div
-          style={{
-            fontSize: 32,
-            letterSpacing: 4,
-            textTransform: 'uppercase',
-            color: '#d4af37',
-            marginBottom: 24,
-          }}
-        >
-          Astera
-        </div>
-        <div style={{ fontSize: 72, fontWeight: 700, marginBottom: 16 }}>Invoice #{id}</div>
-        <div style={{ fontSize: 28, color: '#9a9a9a' }}>
-          Tokenized invoice financing on Stellar
-        </div>
-      </div>
-    ),
-    { ...size },
-  );
+  try {
+    const invoice = await getInvoice(Number(id));
+    const amount = (Number(invoice.amount) / 10_000_000).toLocaleString();
+    return renderBrandOgImage(
+      `Invoice #${invoice.id} — ${amount} USDC`,
+      `Status: ${invoice.status}`,
+    );
+  } catch {
+    return renderBrandOgImage(`Invoice #${id}`, 'Stellar Invoice Financing');
+  }
 }
