@@ -128,7 +128,8 @@
       "exchangeRates": "Tipos de cambio",
       "aging": "Informe de antiguedad",
       "oracles": "Red de oraculos",
-      "attestors": "Atestadores de credito"
+      "attestors": "Atestadores de credito",
+      "insurance": "Seguro"
     },
     "layout": {
       "accessDeniedTitle": "Identificacion de administrador requerida",
