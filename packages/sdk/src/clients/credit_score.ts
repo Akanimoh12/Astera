@@ -17,9 +17,18 @@ type CreditScoreResponse = Record<string, unknown> & {
   configVersion: number;
   isStale: boolean;
   blendedScore: number;
+  /** #1041: point delta from debtor-concentration/invoice-size risk signals. */
+  riskAdjustmentPts: number;
+  /** #1041: point delta from the repayment-trend factor. */
+  trendAdjustmentPts: number;
+  /** #1041: blendedScore + riskAdjustmentPts + trendAdjustmentPts, clamped. */
+  finalScore: number;
 };
 
-type AttestorType = 'CreditBureau' | 'TradeReference' | 'BusinessReference' | 'BankReference';
+// #1041: fixed to match the real contract enum (contracts/credit_score/src/lib.rs
+// `AttestorType`) — the previous union here didn't match any of the four real
+// variants except CreditBureau, silently misencoding the other three.
+type AttestorType = 'BusinessRegistry' | 'CreditBureau' | 'ExternalProtocol' | 'Manual';
 
 type AttestationStatus = 'Active' | 'Expired' | 'Revoked';
 
@@ -66,6 +75,9 @@ function creditScoreResponseFromScVal(raw: Record<string, unknown>): CreditScore
     configVersion: Number(raw.config_version),
     isStale: Boolean(raw.is_stale),
     blendedScore: Number(raw.blended_score),
+    riskAdjustmentPts: Number(raw.risk_adjustment_pts),
+    trendAdjustmentPts: Number(raw.trend_adjustment_pts),
+    finalScore: Number(raw.final_score),
   };
 }
 
@@ -271,6 +283,35 @@ export class CreditScoreClient extends BaseClient {
           new Address(params.admin).toScVal(),
           nativeToScVal(params.attestationId, { type: 'u64' }),
           nativeToScVal(params.upheld, { type: 'bool' }),
+        ],
+        params.onProgress,
+      );
+    }
+
+    /**
+     * #1041: submit (or replace) an SME's off-chain-computed risk signal.
+     * Admin-only (reuses the existing admin role rather than a dedicated
+     * keeper address, to keep the contract's compiled size within CI's
+     * growth budget). There is no on-chain read for this — read the
+     * indexer's `/credit-score/:sme/risk-signals` endpoint instead, which is
+     * the same data this submission is sourced from.
+     */
+    async submitRiskSignal(params: {
+      signer: Signer;
+      admin: string;
+      sme: string;
+      debtorConcentrationBps: number;
+      invoiceSizeRiskBps: number;
+      onProgress?: (progress: TransactionProgress) => void;
+    }): Promise<string> {
+      return this.buildAndSendTx(
+        params.admin,
+        'submit_risk_signal',
+        [
+          new Address(params.admin).toScVal(),
+          new Address(params.sme).toScVal(),
+          nativeToScVal(params.debtorConcentrationBps, { type: 'u32' }),
+          nativeToScVal(params.invoiceSizeRiskBps, { type: 'u32' }),
         ],
         params.onProgress,
       );
