@@ -146,7 +146,8 @@
       "exchangeRates": "Exchange Rates",
       "aging": "Aging Report",
       "oracles": "Oracle Network",
-      "attestors": "Credit Attestors"
+      "attestors": "Credit Attestors",
+      "insurance": "Insurance"
     },
     "layout": {
       "accessDeniedTitle": "Admin Identification Required",

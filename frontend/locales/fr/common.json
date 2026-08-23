@@ -146,7 +146,8 @@
       "exchangeRates": "Taux de change",
       "aging": "Rapport d'ancienneté",
       "oracles": "Réseau d'oracles",
-      "attestors": "Attestateurs de crédit"
+      "attestors": "Attestateurs de crédit",
+      "insurance": "Assurance"
     },
     "layout": {
       "accessDeniedTitle": "Identification d'administrateur requise",

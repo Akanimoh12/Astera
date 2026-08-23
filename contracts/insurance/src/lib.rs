@@ -746,14 +746,12 @@ impl InsuranceReserve {
                 shortfalls: shortfall,
                 timestamp: env.ledger().timestamp(),
             };
-            env.storage().instance().set(
-                &DataKey::ClaimHistoryEntry(invoice_id, hist_count),
-                &item,
-            );
-            env.storage().instance().set(
-                &DataKey::ClaimHistoryCount(invoice_id),
-                &(hist_count + 1),
-            );
+            env.storage()
+                .instance()
+                .set(&DataKey::ClaimHistoryEntry(invoice_id, hist_count), &item);
+            env.storage()
+                .instance()
+                .set(&DataKey::ClaimHistoryCount(invoice_id), &(hist_count + 1));
 
             env.events()
                 .publish((EVT, symbol_short!("claimed")), (invoice_id, payout));
@@ -834,10 +832,8 @@ impl InsuranceReserve {
         env.storage()
             .instance()
             .set(&DataKey::MinReserveAmount(token.clone()), &min_amount);
-        env.events().publish(
-            (EVT, symbol_short!("min_rsv")),
-            (admin, token, min_amount),
-        );
+        env.events()
+            .publish((EVT, symbol_short!("min_rsv")), (admin, token, min_amount));
         Ok(())
     }
 
