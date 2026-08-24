@@ -13,7 +13,7 @@
 import { Pool } from "pg";
 import { Horizon } from "stellar-sdk";
 import { parseEvents } from "./parser";
-import { storeEvents } from "./db";
+import { storeEvents, getBackfillCheckpoint, saveBackfillCheckpoint } from "./db";
 import { logger } from "./logger";
 import { backfillProgressLedger, eventsIndexedTotal } from "./metrics";
 
@@ -24,19 +24,55 @@ export interface BackfillOptions {
   endLedger: number | null;
 }
 
+/**
+ * Identifies a backfill run by its watched contract set and the *original*
+ * starting ledger passed on the command line — so re-issuing the exact same
+ * `--backfill <from> [--to <to>]` command after a crash resumes from the
+ * persisted checkpoint, while a deliberately different range (different
+ * contracts and/or a different `<from>`) starts its own independent run
+ * instead of resuming (or clobbering) an unrelated one.
+ */
+export function backfillJobKey(contractIds: string[], startLedger: number): string {
+  const ids = contractIds.length > 0 ? [...contractIds].sort().join(",") : "*";
+  return `${ids}:${startLedger}`;
+}
+
 export async function runBackfill(
   pool: Pool,
   options: BackfillOptions,
 ): Promise<void> {
   const { horizonUrl, contractIds, startLedger, endLedger } = options;
 
+  const jobKey = backfillJobKey(contractIds, startLedger);
+
+  // #1173: resume from the last persisted checkpoint (if any) instead of
+  // always restarting from `startLedger`. A checkpoint already marked
+  // "completed" (a prior run of this exact command finished) is treated the
+  // same as no checkpoint — start over is a no-op in that case since there's
+  // nothing left to walk, and avoiding a special-case keeps this simple.
+  const checkpoint = await getBackfillCheckpoint(pool, jobKey);
+  let currentLedger = startLedger;
+  if (checkpoint && checkpoint.status === "running") {
+    currentLedger = checkpoint.currentLedger;
+    logger.info(
+      { jobKey, startLedger, resumeLedger: currentLedger },
+      "[backfill] Resuming from persisted checkpoint",
+    );
+  } else {
+    await saveBackfillCheckpoint(pool, jobKey, {
+      startLedger,
+      endLedger,
+      currentLedger,
+      status: "running",
+    });
+  }
+
   logger.info(
-    { startLedger, endLedger },
+    { startLedger, endLedger, currentLedger },
     "[backfill] Starting backfill",
   );
 
   const horizon = new Horizon.Server(horizonUrl);
-  let currentLedger = startLedger;
   let totalEvents = 0;
 
   while (true) {
@@ -53,6 +89,12 @@ export async function runBackfill(
           { currentLedger, totalEvents },
           "[backfill] Complete — no more records",
         );
+        await saveBackfillCheckpoint(pool, jobKey, {
+          startLedger,
+          endLedger,
+          currentLedger,
+          status: "completed",
+        });
         break;
       }
 
@@ -67,6 +109,15 @@ export async function runBackfill(
         const lastEvent = events[events.length - 1];
         currentLedger = lastEvent.ledgerSequence;
         backfillProgressLedger.set(currentLedger);
+        // #1173: persist progress after every successfully stored batch so a
+        // crash resumes from here (at worst re-walking one in-flight page)
+        // rather than from `startLedger`.
+        await saveBackfillCheckpoint(pool, jobKey, {
+          startLedger,
+          endLedger,
+          currentLedger,
+          status: "running",
+        });
         logger.info(
           { count: events.length, currentLedger },
           "[backfill] Backfilled events",
@@ -78,6 +129,12 @@ export async function runBackfill(
           { endLedger, totalEvents },
           "[backfill] Reached end ledger",
         );
+        await saveBackfillCheckpoint(pool, jobKey, {
+          startLedger,
+          endLedger,
+          currentLedger,
+          status: "completed",
+        });
         break;
       }
 
