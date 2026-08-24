@@ -86,8 +86,8 @@ fn test_admin_resolve_no_quorum_rejects_non_admin_caller() {
     // remaining question is *who* may call admin_resolve_no_quorum.
     for _ in 0..5 {
         let operator = Address::generate(&env);
-        mint(&env, &stake_token, &operator, min_stake);
-        client.register_juror(&operator, &min_stake);
+        mint(&env, &stake_token, &operator, min_stake * 2);
+        client.register_juror(&operator, &(min_stake * 2));
     }
     let claimant = Address::generate(&env);
     let respondent = Address::generate(&env);

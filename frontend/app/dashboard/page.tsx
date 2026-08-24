@@ -32,12 +32,7 @@ type DashboardRow = { invoice: Invoice; metadata: InvoiceMetadata };
 
 type StatusFilter = Invoice['status'] | 'All';
 type SortOption =
-  | 'created-desc'
-  | 'created-asc'
-  | 'amount-desc'
-  | 'amount-asc'
-  | 'due-asc'
-  | 'due-desc';
+  'created-desc' | 'created-asc' | 'amount-desc' | 'amount-asc' | 'due-asc' | 'due-desc';
 
 /** Number of invoices to load per page */
 const PAGE_SIZE = 20;

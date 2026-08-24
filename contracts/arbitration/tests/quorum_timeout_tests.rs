@@ -83,8 +83,8 @@ fn test_no_quorum_escalates_retries_then_falls_back_to_admin() {
     let mut jurors = soroban_sdk::Vec::new(&env);
     for _ in 0..5 {
         let operator = Address::generate(&env);
-        mint(&env, &stake_token, &operator, min_stake);
-        client.register_juror(&operator, &min_stake);
+        mint(&env, &stake_token, &operator, min_stake * 2);
+        client.register_juror(&operator, &(min_stake * 2));
         jurors.push_back(operator);
     }
 

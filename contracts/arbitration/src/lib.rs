@@ -87,6 +87,8 @@ const DEFAULT_LOPSIDED_CONFIDENCE_BPS: u32 = 6_600; // two-thirds
                                                     // Number of committee re-draws allowed after the first, before a case must
                                                     // be escalated to `admin_resolve_no_quorum`.
 const DEFAULT_MAX_RETRIES: u32 = 1;
+const MAX_EVIDENCE_ENTRIES: u32 = 20;
+const MAX_EVIDENCE_HASH_LEN: u32 = 256;
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -130,6 +132,9 @@ pub enum ArbitrationError {
     /// `select_jurors` called again on a case whose re-draws are already
     /// exhausted — `admin_resolve_no_quorum` should be used instead.
     RetriesExhausted = 26,
+    DuplicateOpenCase = 27,
+    EvidenceLimitReached = 28,
+    EvidenceHashTooLong = 29,
 }
 
 #[contracttype]
@@ -523,7 +528,9 @@ impl ArbitrationContract {
                         .persistent()
                         .get::<DataKey, DisputeCase>(&DataKey::Case(case_id))
                     {
-                        if case.status == CaseStatus::CommitReveal {
+                        if case.status == CaseStatus::CommitReveal
+                            && case.jurors.contains(&operator)
+                        {
                             return Err(ArbitrationError::DeregisterHasPendingCases);
                         }
                     }
@@ -592,6 +599,21 @@ impl ArbitrationContract {
         }
         if amount <= 0 {
             return Err(ArbitrationError::InvalidAmount);
+        }
+        if let Some(existing_case_id) = env
+            .storage()
+            .persistent()
+            .get::<DataKey, u64>(&DataKey::InvoiceCase(invoice_id))
+        {
+            if let Some(existing_case) = env
+                .storage()
+                .persistent()
+                .get::<DataKey, DisputeCase>(&DataKey::Case(existing_case_id))
+            {
+                if existing_case.status != CaseStatus::Resolved {
+                    return Err(ArbitrationError::DuplicateOpenCase);
+                }
+            }
         }
 
         let config = Self::load_config(&env)?;
@@ -664,6 +686,9 @@ impl ArbitrationContract {
         } else {
             return Err(ArbitrationError::InvalidParty);
         };
+        if evidence_hash.len() > MAX_EVIDENCE_HASH_LEN {
+            return Err(ArbitrationError::EvidenceHashTooLong);
+        }
 
         let ev_key = DataKey::Evidence(case_id);
         let mut entries: Vec<EvidenceEntry> = env
@@ -671,6 +696,9 @@ impl ArbitrationContract {
             .persistent()
             .get(&ev_key)
             .unwrap_or_else(|| Vec::new(&env));
+        if entries.len() >= MAX_EVIDENCE_ENTRIES {
+            return Err(ArbitrationError::EvidenceLimitReached);
+        }
         entries.push_back(EvidenceEntry {
             submitter: submitter.clone(),
             party,
@@ -726,7 +754,10 @@ impl ArbitrationContract {
                 .persistent()
                 .get::<DataKey, JurorInfo>(&DataKey::Juror(id.clone()))
             {
-                if info.is_active && info.deregister_requested_at.is_none() {
+                if info.is_active
+                    && info.deregister_requested_at.is_none()
+                    && info.stake_amount >= config.min_stake
+                {
                     active.push_back(id);
                 }
             }
