@@ -102,6 +102,53 @@ jobs:
           path: target/criterion/
           retention-days: 30
 
+  # #1175: db.test.ts/parser.test.ts existed only as manual scripts requiring
+  # a live Postgres instance, so they never ran in CI, and reorg.ts/
+  # backfill.ts had no coverage at all. This job wires the existing +
+  # newly-added indexer tests in — the Postgres-backed ones (db, reorg)
+  # against a real service-container database with migrations applied, the
+  # rest (cursor, api, parser, backfill) against fakes/pure logic so they run
+  # without any live service.
+  indexer:
+    name: Indexer
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: indexer
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: astera
+          POSTGRES_PASSWORD: astera
+          POSTGRES_DB: astera_indexer
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U astera -d astera_indexer"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://astera:astera@localhost:5432/astera_indexer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: indexer/package-lock.json
+      - run: npm ci --ignore-scripts
+      - name: Run database migrations
+        run: npm run migrate:up
+      - name: Run tests that don't need Postgres
+        run: npm run test:no-db
+      - name: Run db.test.ts
+        run: npm run test:db
+      - name: Run reorg.test.ts
+        run: npm run test:reorg
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
