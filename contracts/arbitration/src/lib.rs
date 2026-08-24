@@ -130,6 +130,8 @@ pub enum ArbitrationError {
     /// `select_jurors` called again on a case whose re-draws are already
     /// exhausted — `admin_resolve_no_quorum` should be used instead.
     RetriesExhausted = 26,
+    /// `open_case` called with the same address as both claimant and respondent.
+    ClaimantCannotBeRespondent = 27,
 }
 
 #[contracttype]
@@ -569,6 +571,9 @@ impl ArbitrationContract {
         }
         if amount <= 0 {
             return Err(ArbitrationError::InvalidAmount);
+        }
+        if claimant == respondent {
+            return Err(ArbitrationError::ClaimantCannotBeRespondent);
         }
 
         let config = Self::load_config(&env)?;
