@@ -170,12 +170,7 @@ export interface RateSnapshot {
 }
 
 export type ProposalStatus =
-  | 'Active'
-  | 'Passed'
-  | 'Rejected'
-  | 'Executed'
-  | 'Cancelled'
-  | 'Expired';
+  'Active' | 'Passed' | 'Rejected' | 'Executed' | 'Cancelled' | 'Expired';
 
 export interface GovernanceProposal {
   id: number;
@@ -381,11 +376,7 @@ export interface ReferralStats {
 
 // #864: role-based multisig access control
 export type Role =
-  | 'SuperAdmin'
-  | 'RiskManager'
-  | 'TreasuryManager'
-  | 'ComplianceOfficer'
-  | 'OracleManager';
+  'SuperAdmin' | 'RiskManager' | 'TreasuryManager' | 'ComplianceOfficer' | 'OracleManager';
 
 export const ALL_ROLES: Role[] = [
   'SuperAdmin',

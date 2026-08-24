@@ -31,3 +31,7 @@ path = "tests/quorum_timeout_tests.rs"
 [[test]]
 name = "authorization_tests"
 path = "tests/authorization_tests.rs"
+
+[[test]]
+name = "issue_fixes_tests"
+path = "tests/issue_fixes_tests.rs"
