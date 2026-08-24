@@ -150,6 +150,29 @@ pub struct JurorInfo {
 }
 
 #[contracttype]
+#[derive(Clone, Debug)]
+pub struct JurorStats {
+    pub address: Address,
+    pub stake_amount: i128,
+    pub is_active: bool,
+    pub cases_served: u32,
+    pub times_slashed: u32,
+    pub non_reveal_strikes: u32,
+    pub registered_at: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct AggregateJurorStats {
+    pub total_jurors: u32,
+    pub active_jurors: u32,
+    pub total_stake: i128,
+    pub total_cases_served: u32,
+    pub total_slashes: u32,
+    pub total_non_reveal_strikes: u32,
+}
+
+#[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PartyRole {
     Claimant,
@@ -1063,6 +1086,112 @@ impl ArbitrationContract {
             .persistent()
             .get(&DataKey::JurorCases(operator))
             .unwrap_or_else(|| Vec::new(&env))
+    }
+
+    /// Lists all cases with the specified status. Useful for finding cases
+    /// that need specific actions, e.g., NoQuorumEscalated cases needing
+    /// admin_resolve_no_quorum without replaying events off-chain.
+    pub fn list_cases_by_status(env: Env, status: CaseStatus) -> Vec<u64> {
+        let case_count: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::CaseCount)
+            .unwrap_or(0);
+
+        let mut matching_cases = Vec::new(&env);
+
+        // Iterate through all case IDs and check their status
+        for case_id in 0..case_count {
+            if let Some(case) = env
+                .storage()
+                .persistent()
+                .get::<DataKey, DisputeCase>(&DataKey::Case(case_id))
+            {
+                if case.status == status {
+                    matching_cases.push_back(case_id);
+                }
+            }
+        }
+
+        matching_cases
+    }
+
+    /// Returns aggregate statistics across all jurors for reputation/leaderboard
+    /// display. Provides totals for stake, cases served, slashes, and non-reveal
+    /// strikes without requiring individual juror fetches.
+    pub fn get_aggregate_juror_stats(env: Env) -> AggregateJurorStats {
+        let ids: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&DataKey::JurorIds)
+            .unwrap_or_else(|| Vec::new(&env));
+
+        let mut total_jurors = 0u32;
+        let mut active_jurors = 0u32;
+        let mut total_stake = 0i128;
+        let mut total_cases_served = 0u32;
+        let mut total_slashes = 0u32;
+        let mut total_non_reveal_strikes = 0u32;
+
+        for id in ids.iter() {
+            if let Some(info) = env
+                .storage()
+                .persistent()
+                .get::<DataKey, JurorInfo>(&DataKey::Juror(id.clone()))
+            {
+                total_jurors += 1;
+
+                if info.is_active {
+                    active_jurors += 1;
+                }
+
+                total_stake += info.stake_amount;
+                total_cases_served += info.cases_served;
+                total_slashes += info.times_slashed;
+                total_non_reveal_strikes += info.non_reveal_strikes;
+            }
+        }
+
+        AggregateJurorStats {
+            total_jurors,
+            active_jurors,
+            total_stake,
+            total_cases_served,
+            total_slashes,
+            total_non_reveal_strikes,
+        }
+    }
+
+    /// Returns individual juror statistics for all jurors, suitable for
+    /// leaderboard display. More efficient than fetching each juror individually.
+    pub fn get_all_juror_stats(env: Env) -> Vec<JurorStats> {
+        let ids: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&DataKey::JurorIds)
+            .unwrap_or_else(|| Vec::new(&env));
+
+        let mut stats = Vec::new(&env);
+
+        for id in ids.iter() {
+            if let Some(info) = env
+                .storage()
+                .persistent()
+                .get::<DataKey, JurorInfo>(&DataKey::Juror(id.clone()))
+            {
+                stats.push_back(JurorStats {
+                    address: info.address,
+                    stake_amount: info.stake_amount,
+                    is_active: info.is_active,
+                    cases_served: info.cases_served,
+                    times_slashed: info.times_slashed,
+                    non_reveal_strikes: info.non_reveal_strikes,
+                    registered_at: info.registered_at,
+                });
+            }
+        }
+
+        stats
     }
 
     fn append_juror_case(env: &Env, juror: Address, case_id: u64) {
