@@ -222,6 +222,73 @@ export async function getLatestLedger(pool: Pool): Promise<string | null> {
   return rows[0] ? String(rows[0].ledger_sequence) : null;
 }
 
+// #1173: persisted resume checkpoint for backfill runs (see
+// migrations/1700000000003_backfill-checkpoints.js). Previously backfill
+// progress lived only in-memory and in a Prometheus gauge, so a crashed or
+// restarted process always restarted from the original `--backfill <from>`
+// argument instead of where it left off.
+export interface BackfillCheckpoint {
+  jobKey: string;
+  startLedger: number;
+  endLedger: number | null;
+  currentLedger: number;
+  status: "running" | "completed";
+  updatedAt: string;
+}
+
+export async function getBackfillCheckpoint(
+  pool: Pool,
+  jobKey: string,
+): Promise<BackfillCheckpoint | null> {
+  const { rows } = await pool.query(
+    `SELECT job_key, start_ledger, end_ledger, current_ledger, status, updated_at
+       FROM backfill_checkpoints WHERE job_key = $1`,
+    [jobKey],
+  );
+  if (!rows[0]) return null;
+  const row = rows[0];
+  return {
+    jobKey: row.job_key,
+    startLedger: Number(row.start_ledger),
+    endLedger: row.end_ledger === null ? null : Number(row.end_ledger),
+    currentLedger: Number(row.current_ledger),
+    status: row.status,
+    updatedAt:
+      row.updated_at instanceof Date
+        ? row.updated_at.toISOString()
+        : row.updated_at,
+  };
+}
+
+/**
+ * Upserts the checkpoint row for `jobKey`. Called after every successfully
+ * processed batch (so a crash loses at most one in-flight page) and once
+ * more with `status: "completed"` when the backfill finishes, so a later
+ * re-run of the same command doesn't needlessly re-walk a finished range.
+ */
+export async function saveBackfillCheckpoint(
+  pool: Pool,
+  jobKey: string,
+  fields: {
+    startLedger: number;
+    endLedger: number | null;
+    currentLedger: number;
+    status: "running" | "completed";
+  },
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO backfill_checkpoints
+       (job_key, start_ledger, end_ledger, current_ledger, status, updated_at)
+     VALUES ($1, $2, $3, $4, $5, now())
+     ON CONFLICT (job_key) DO UPDATE SET
+       end_ledger = $3,
+       current_ledger = $4,
+       status = $5,
+       updated_at = now()`,
+    [jobKey, fields.startLedger, fields.endLedger, fields.currentLedger, fields.status],
+  );
+}
+
 // #862: historical realized APY per tranche per token.
 //
 // Each closed invoice contributes to the trailing realized yield of both
