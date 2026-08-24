@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import type { FeeEstimate } from '@/lib/simulateFee';
 
 export type SimulationStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -16,10 +16,12 @@ export function useTransactionSimulation(
   const [status, setStatus] = useState<SimulationStatus>('idle');
   const [feeEstimate, setFeeEstimate] = useState<FeeEstimate | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const simulateFnRef = useRef(simulateFn);
-  simulateFnRef.current = simulateFn;
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- intentional async-init
+       effect: state is seeded synchronously when the (re)simulation starts,
+       which is the correct behaviour here and would otherwise cascade only on
+       real input/enabled changes. */
     if (!enabled) {
       setStatus('idle');
       setFeeEstimate(null);
@@ -34,7 +36,7 @@ export function useTransactionSimulation(
       setError(null);
 
       try {
-        const fn = simulateFnRef.current();
+        const fn = simulateFn();
         if (!fn) {
           if (!cancelled) setStatus('idle');
           return;
@@ -57,7 +59,12 @@ export function useTransactionSimulation(
     return () => {
       cancelled = true;
     };
-  }, [enabled]);
+    // `simulateFn` is memoised by callers (via useCallback) against the inputs
+    // it closes over, so including it here re-runs the simulation whenever those
+    // inputs change while `enabled` stays true — previously it only re-ran when
+    // `enabled` toggled.
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [enabled, simulateFn]);
 
   return { status, feeEstimate, error };
 }
