@@ -37,6 +37,7 @@ jobs:
             credit_score
             insurance
             share
+            arbitration
             frontend
             contracts
             sdk

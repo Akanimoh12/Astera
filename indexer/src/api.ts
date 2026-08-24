@@ -10,6 +10,63 @@ import { getEvents, getLatestLedger, getTrancheApy, getSmeRiskSignals } from "./
 import { logger } from "./logger";
 import { register } from "./metrics";
 
+// #1174: `/events`'s `limit`/`offset` query params used to feed straight
+// from `parseInt` into the `getEvents` SQL query with no bounds check —
+// non-numeric input silently became `NaN` (which Postgres coerces in ways
+// that don't match "50 events" intent), and there was no ceiling on `limit`,
+// so a caller (or an automated scanner) could request an effectively
+// unbounded page and force a full table scan. `MAX_EVENTS_LIMIT` caps how
+// large a single page can be; `parsePaginationParams` rejects anything that
+// isn't a clean non-negative integer string outright rather than trying to
+// coerce it.
+export const MAX_EVENTS_LIMIT = 1000;
+const DEFAULT_EVENTS_LIMIT = 50;
+
+/** A bare `^\d+$` match — deliberately stricter than `parseInt`, which
+ * happily accepts (and silently truncates/garbles) input like "50abc",
+ * "1e3", "3.5", " 50", or "-1". */
+const NON_NEGATIVE_INTEGER = /^\d+$/;
+
+export type PaginationParams = { limit: number; offset: number };
+export type PaginationResult =
+  | { ok: true; params: PaginationParams }
+  | { ok: false; error: string };
+
+/**
+ * Validates and parses `limit`/`offset` query params. `limit` must be a
+ * positive integer no greater than `MAX_EVENTS_LIMIT`; `offset` must be a
+ * non-negative integer. Both are optional and fall back to defaults when
+ * omitted — only a value that's actually *present but invalid* is rejected.
+ */
+export function parsePaginationParams(
+  limitRaw: unknown,
+  offsetRaw: unknown,
+): PaginationResult {
+  let limit = DEFAULT_EVENTS_LIMIT;
+  if (limitRaw !== undefined) {
+    if (typeof limitRaw !== "string" || !NON_NEGATIVE_INTEGER.test(limitRaw)) {
+      return { ok: false, error: "limit must be a positive integer" };
+    }
+    limit = parseInt(limitRaw, 10);
+    if (limit < 1 || limit > MAX_EVENTS_LIMIT) {
+      return {
+        ok: false,
+        error: `limit must be between 1 and ${MAX_EVENTS_LIMIT}`,
+      };
+    }
+  }
+
+  let offset = 0;
+  if (offsetRaw !== undefined) {
+    if (typeof offsetRaw !== "string" || !NON_NEGATIVE_INTEGER.test(offsetRaw)) {
+      return { ok: false, error: "offset must be a non-negative integer" };
+    }
+    offset = parseInt(offsetRaw, 10);
+  }
+
+  return { ok: true, params: { limit, offset } };
+}
+
 export function startApiServer(
   pool: Pool,
   port: number,
@@ -73,19 +130,28 @@ export function startApiServer(
         contract_type,
         event_type,
         actor_address,
-        limit = "50",
-        offset = "0",
+        limit,
+        offset,
         after_ledger,
         before_ledger,
       } = req.query;
+
+      // #1174: reject a malformed or out-of-bounds limit/offset up front
+      // with a 400, instead of letting `parseInt` silently coerce garbage
+      // input (e.g. NaN, or an unbounded limit that forces a full table
+      // scan) into the query below.
+      const pagination = parsePaginationParams(limit, offset);
+      if (!pagination.ok) {
+        return res.status(400).json({ error: pagination.error });
+      }
 
       const events = await getEvents(pool, {
         contractId: contract_id as string | undefined,
         contractType: contract_type as string | undefined,
         eventType: event_type as string | undefined,
         actorAddress: actor_address as string | undefined,
-        limit: parseInt(limit as string, 10),
-        offset: parseInt(offset as string, 10),
+        limit: pagination.params.limit,
+        offset: pagination.params.offset,
         afterLedger:
           typeof after_ledger === "string" ? parseInt(after_ledger, 10) : undefined,
         beforeLedger:

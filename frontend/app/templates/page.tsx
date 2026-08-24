@@ -7,13 +7,16 @@ import {
   loadInvoiceTemplates,
   type InvoiceTemplate,
 } from '@/lib/invoiceTemplates';
+import ConfirmActionModal from '@/components/ConfirmActionModal';
 
 export default function TemplatesPage() {
   const [templates, setTemplates] = useState<InvoiceTemplate[]>([]);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   useEffect(() => setTemplates(loadInvoiceTemplates()), []);
   const remove = (id: string) => {
     deleteInvoiceTemplate(id);
     setTemplates(loadInvoiceTemplates());
+    setPendingDeleteId(null);
   };
   return (
     <main className="min-h-screen px-6 pb-16 pt-24">
@@ -59,7 +62,7 @@ export default function TemplatesPage() {
                     Use template
                   </Link>
                   <button
-                    onClick={() => remove(template.id)}
+                    onClick={() => setPendingDeleteId(template.id)}
                     className="text-red-400 hover:underline"
                   >
                     Delete
@@ -70,6 +73,15 @@ export default function TemplatesPage() {
           </div>
         )}
       </div>
+      <ConfirmActionModal
+        title="Delete this template?"
+        description="This will permanently remove the saved invoice template. This action cannot be undone."
+        onConfirm={() => pendingDeleteId !== null && remove(pendingDeleteId)}
+        onCancel={() => setPendingDeleteId(null)}
+        variant="destructive"
+        isOpen={pendingDeleteId !== null}
+        confirmLabel="Delete"
+      />
     </main>
   );
 }
