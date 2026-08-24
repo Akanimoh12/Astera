@@ -233,11 +233,11 @@ fn test_list_cases_by_status_finds_escalated_cases() {
     // First, advance past evidence window
     env.ledger()
         .with_mut(|l| l.timestamp += 3 * 24 * 60 * 60 + 1);
-    
+
     // Select jurors for case_1
     client.select_jurors(&case_id_1);
     let case = client.get_case(&case_id_1).unwrap();
-    
+
     // Commit all jurors but only reveal 2 (below quorum of 3)
     let mut salts = soroban_sdk::Vec::new(&env);
     for i in 0u8..5 {
@@ -246,18 +246,18 @@ fn test_list_cases_by_status_finds_escalated_cases() {
         let juror = case.jurors.get(i as u32).unwrap();
         client.commit_vote(&case_id_1, &juror, &commit_hash(&env, true, &salt));
     }
-    
+
     // Move past commit deadline
     env.ledger()
         .with_mut(|l| l.timestamp += 2 * 24 * 60 * 60 + 1);
-    
+
     // Reveal only 2 votes (below quorum)
     for i in 0u32..2 {
         let juror = case.jurors.get(i).unwrap();
         let salt = salts.get(i).unwrap();
         client.reveal_vote(&case_id_1, &juror, &true, &salt);
     }
-    
+
     // Move past reveal deadline and finalize (this will escalate due to no quorum)
     env.ledger()
         .with_mut(|l| l.timestamp += 2 * 24 * 60 * 60 + 1);
@@ -266,7 +266,7 @@ fn test_list_cases_by_status_finds_escalated_cases() {
     // Do the retry and fail again to reach NoQuorumEscalated
     client.select_jurors(&case_id_1);
     let case = client.get_case(&case_id_1).unwrap();
-    
+
     let mut salts2 = soroban_sdk::Vec::new(&env);
     for i in 0u8..5 {
         let salt = BytesN::from_array(&env, &[100 + i; 32]);
@@ -308,7 +308,7 @@ fn test_list_cases_by_status_finds_escalated_cases() {
 
     // Resolve case_1 using admin_resolve_no_quorum
     client.admin_resolve_no_quorum(&admin, &case_id_1, &DisputeResolution::InFavorOfDebtor);
-    
+
     // Now case_1 should be Resolved and not appear in NoQuorumEscalated list
     let escalated_cases = client.list_cases_by_status(&CaseStatus::NoQuorumEscalated);
     assert_eq!(escalated_cases.len(), 0);
@@ -361,16 +361,16 @@ fn test_juror_statistics_functions() {
     // Register jurors at different times
     env.ledger().with_mut(|l| l.timestamp = 2_000_000);
     client.register_juror(&juror1, &stake1);
-    
+
     env.ledger().with_mut(|l| l.timestamp = 3_000_000);
     client.register_juror(&juror2, &stake2);
-    
+
     env.ledger().with_mut(|l| l.timestamp = 4_000_000);
     client.register_juror(&juror3, &stake3);
-    
+
     env.ledger().with_mut(|l| l.timestamp = 5_000_000);
     client.register_juror(&juror4, &stake4);
-    
+
     env.ledger().with_mut(|l| l.timestamp = 6_000_000);
     client.register_juror(&juror5, &stake5);
 
@@ -378,7 +378,10 @@ fn test_juror_statistics_functions() {
     let post_reg_aggregate = client.get_aggregate_juror_stats();
     assert_eq!(post_reg_aggregate.total_jurors, 5);
     assert_eq!(post_reg_aggregate.active_jurors, 5);
-    assert_eq!(post_reg_aggregate.total_stake, stake1 + stake2 + stake3 + stake4 + stake5);
+    assert_eq!(
+        post_reg_aggregate.total_stake,
+        stake1 + stake2 + stake3 + stake4 + stake5
+    );
     assert_eq!(post_reg_aggregate.total_cases_served, 0);
     assert_eq!(post_reg_aggregate.total_slashes, 0);
     assert_eq!(post_reg_aggregate.total_non_reveal_strikes, 0);
@@ -386,7 +389,7 @@ fn test_juror_statistics_functions() {
     // Check individual stats
     let all_stats = client.get_all_juror_stats();
     assert_eq!(all_stats.len(), 5);
-    
+
     // Find each juror's stats (order might vary)
     let juror1_stats = all_stats.iter().find(|s| s.address == juror1).unwrap();
     let juror2_stats = all_stats.iter().find(|s| s.address == juror2).unwrap();
@@ -401,7 +404,7 @@ fn test_juror_statistics_functions() {
 
     assert_eq!(juror2_stats.stake_amount, stake2);
     assert_eq!(juror2_stats.registered_at, 3_000_000);
-    
+
     assert_eq!(juror3_stats.stake_amount, stake3);
     assert_eq!(juror3_stats.registered_at, 4_000_000);
 
@@ -411,11 +414,12 @@ fn test_juror_statistics_functions() {
     let case_id = client.open_case(&invoice_id, &1u64, &claimant, &respondent, &10_000i128);
 
     // Move past evidence window and select jurors
-    env.ledger().with_mut(|l| l.timestamp += 3 * 24 * 60 * 60 + 1);
+    env.ledger()
+        .with_mut(|l| l.timestamp += 3 * 24 * 60 * 60 + 1);
     client.select_jurors(&case_id);
-    
+
     let case = client.get_case(&case_id).unwrap();
-    
+
     // Commit votes from all selected jurors
     let mut salts = soroban_sdk::Vec::new(&env);
     for i in 0u32..case.jurors.len() {
@@ -424,10 +428,11 @@ fn test_juror_statistics_functions() {
         let juror = case.jurors.get(i).unwrap();
         client.commit_vote(&case_id, &juror, &commit_hash(&env, true, &salt));
     }
-    
+
     // Move past commit deadline
-    env.ledger().with_mut(|l| l.timestamp += 2 * 24 * 60 * 60 + 1);
-    
+    env.ledger()
+        .with_mut(|l| l.timestamp += 2 * 24 * 60 * 60 + 1);
+
     // Only reveal votes from some jurors to create different outcomes
     // Reveal from first 3 jurors (committee size is 5 by default)
     for i in 0u32..3 {
@@ -437,37 +442,42 @@ fn test_juror_statistics_functions() {
             client.reveal_vote(&case_id, &juror, &true, &salt);
         }
     }
-    
+
     // Move past reveal deadline and finalize
-    env.ledger().with_mut(|l| l.timestamp += 2 * 24 * 60 * 60 + 1);
+    env.ledger()
+        .with_mut(|l| l.timestamp += 2 * 24 * 60 * 60 + 1);
     client.finalize_case(&case_id);
 
     // Check updated aggregate stats - should show increased activity
     let post_case_aggregate = client.get_aggregate_juror_stats();
     assert_eq!(post_case_aggregate.total_jurors, 5);
     assert_eq!(post_case_aggregate.active_jurors, 5);
-    assert_eq!(post_case_aggregate.total_stake, stake1 + stake2 + stake3 + stake4 + stake5); // Should be reduced due to slashing, but we'll check this separately
-    
+    assert_eq!(
+        post_case_aggregate.total_stake,
+        stake1 + stake2 + stake3 + stake4 + stake5
+    ); // Should be reduced due to slashing, but we'll check this separately
+
     // Cases served should be incremented for committee members
     assert!(post_case_aggregate.total_cases_served > 0);
-    
+
     // Non-reveal strikes should be incremented for jurors who didn't reveal
     assert!(post_case_aggregate.total_non_reveal_strikes > 0);
 
     // Check that individual stats show the changes
     let updated_all_stats = client.get_all_juror_stats();
     assert_eq!(updated_all_stats.len(), 5);
-    
+
     // Verify that some jurors now have cases_served > 0 and non_reveal_strikes incremented
     let total_cases_served: u32 = updated_all_stats.iter().map(|s| s.cases_served).sum();
-    let total_non_reveal_strikes: u32 = updated_all_stats.iter().map(|s| s.non_reveal_strikes).sum();
-    
+    let total_non_reveal_strikes: u32 =
+        updated_all_stats.iter().map(|s| s.non_reveal_strikes).sum();
+
     assert!(total_cases_served > 0);
     assert!(total_non_reveal_strikes > 0);
 
     // Test with inactive juror - deregister one juror
     client.deregister_juror(&juror5);
-    
+
     let post_dereg_aggregate = client.get_aggregate_juror_stats();
     assert_eq!(post_dereg_aggregate.total_jurors, 5); // Still 5 total
     assert_eq!(post_dereg_aggregate.active_jurors, 4); // But only 4 active

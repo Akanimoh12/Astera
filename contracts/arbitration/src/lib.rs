@@ -1097,9 +1097,9 @@ impl ArbitrationContract {
             .instance()
             .get(&DataKey::CaseCount)
             .unwrap_or(0);
-        
+
         let mut matching_cases = Vec::new(&env);
-        
+
         // Iterate through all case IDs and check their status
         for case_id in 0..case_count {
             if let Some(case) = env
@@ -1112,7 +1112,7 @@ impl ArbitrationContract {
                 }
             }
         }
-        
+
         matching_cases
     }
 
@@ -1140,11 +1140,11 @@ impl ArbitrationContract {
                 .get::<DataKey, JurorInfo>(&DataKey::Juror(id.clone()))
             {
                 total_jurors += 1;
-                
+
                 if info.is_active {
                     active_jurors += 1;
                 }
-                
+
                 total_stake += info.stake_amount;
                 total_cases_served += info.cases_served;
                 total_slashes += info.times_slashed;
