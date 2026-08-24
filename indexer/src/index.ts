@@ -20,6 +20,7 @@ import {
 import { startApiServer } from "./api";
 import { runBackfill } from "./backfill";
 import { detectReorg, fetchLedgerMeta, recordLedgerHash, rollbackFrom } from "./reorg";
+import { ledgerToCursor } from "./cursor";
 import { logger } from "./logger";
 import {
   eventsIndexedTotal,
@@ -151,14 +152,18 @@ async function main() {
 async function pollLoop(pool: Pool, state: { lastProcessedLedger: string }) {
   let cursor = await getLatestLedger(pool);
 
-  // #976: Apply lookback window on startup to catch any events missed during downtime
+  // #976/#1169: Apply lookback window on startup to catch any events missed
+  // during downtime. `cursor` here starts out as a raw ledger sequence (from
+  // getLatestLedger), so the lookback target must be converted to a proper
+  // Horizon TOID cursor before being handed to `.cursor()` below — see
+  // `ledgerToCursor`'s doc comment.
   if (cursor) {
     const lookbackLedger = Math.max(0, parseInt(cursor, 10) - LOOKBACK_LEDGERS);
     logger.info(
       { lookbackLedger, cursor, LOOKBACK_LEDGERS },
       "[Astera Indexer] Applying lookback",
     );
-    cursor = lookbackLedger.toString();
+    cursor = ledgerToCursor(lookbackLedger);
   }
 
   logger.info(`[Astera Indexer] Starting from ledger: ${cursor || "latest"}`);
@@ -208,8 +213,15 @@ async function pollLoop(pool: Pool, state: { lastProcessedLedger: string }) {
               "[Astera Indexer] ALERT: ledger reorg detected — rolling back and re-indexing",
             );
             await rollbackFrom(pool, rollbackPoint);
-            cursor = rollbackPoint.toString();
-            state.lastProcessedLedger = cursor;
+            // #1169: same TOID-vs-raw-sequence pitfall as the startup
+            // lookback above — `cursor` feeds straight into
+            // `horizon.effects().cursor()` on the next loop iteration, which
+            // needs a paging token, not a bare ledger sequence.
+            // `state.lastProcessedLedger` (the /health-reported value) stays
+            // a plain ledger number, since nothing feeds it back into
+            // Horizon's cursor.
+            cursor = ledgerToCursor(rollbackPoint);
+            state.lastProcessedLedger = rollbackPoint.toString();
           } else {
             await recordLedgerHash(pool, meta);
           }
