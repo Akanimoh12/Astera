@@ -10,7 +10,15 @@
     "migrate": "node-pg-migrate",
     "migrate:up": "node-pg-migrate up",
     "migrate:down": "node-pg-migrate down",
-    "migrate:sqlite-to-postgres": "ts-node scripts/migrate-sqlite-to-postgres.ts"
+    "migrate:sqlite-to-postgres": "ts-node scripts/migrate-sqlite-to-postgres.ts",
+    "test:cursor": "ts-node src/cursor.test.ts",
+    "test:api": "ts-node src/api.test.ts",
+    "test:parser": "ts-node src/parser.test.ts",
+    "test:backfill": "ts-node src/backfill.test.ts",
+    "test:db": "ts-node src/db.test.ts",
+    "test:reorg": "ts-node src/reorg.test.ts",
+    "test:no-db": "npm run test:cursor && npm run test:api && npm run test:parser && npm run test:backfill",
+    "test": "npm run test:no-db && npm run test:db && npm run test:reorg"
   },
   "dependencies": {
     "better-sqlite3": "^9.4.3",

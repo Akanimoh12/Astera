@@ -7,9 +7,9 @@
  *   DATABASE_URL=postgres://astera:astera@localhost:5433/astera_indexer \
  *     ts-node src/db.test.ts
  *
- * Not run in CI (there's no indexer job) — this mirrors how the rest of the
- * indexer's Postgres-backed code is exercised (manually, against a real
- * instance), same as recomputeTrancheApy before it.
+ * #1175: now wired into the `indexer` CI job (.github/workflows/ci.yml),
+ * which spins up a Postgres service container and runs migrations before
+ * this and reorg.test.ts.
  */
 import assert from 'node:assert';
 import { createPool, storeEvents, recomputeSmeRiskSignals, getSmeRiskSignals } from './db';

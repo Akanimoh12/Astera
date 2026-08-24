@@ -22,20 +22,40 @@ export interface BackfillOptions {
   contractIds: string[];
   startLedger: number;
   endLedger: number | null;
+  /** Delay before retrying after an error, in ms. Defaults to 5000;
+   * overridable so tests can exercise the error/resume path without a real
+   * multi-second wait. */
+  retryDelayMs?: number;
+  /** Delay between successful pages, in ms. Defaults to 100; overridable for
+   * the same reason as `retryDelayMs`. */
+  pageDelayMs?: number;
 }
 
 export async function runBackfill(
   pool: Pool,
   options: BackfillOptions,
+  // #1175: injectable Horizon client so backfill's resume/crash behavior
+  // (error-then-retry, end-ledger stop condition, cursor dedup) can be unit
+  // tested against a fake Horizon without a live testnet dependency.
+  // `index.ts`'s real caller never passes this — it's always constructed
+  // from `horizonUrl` below.
+  horizonClient?: Horizon.Server,
 ): Promise<void> {
-  const { horizonUrl, contractIds, startLedger, endLedger } = options;
+  const {
+    horizonUrl,
+    contractIds,
+    startLedger,
+    endLedger,
+    retryDelayMs = 5000,
+    pageDelayMs = 100,
+  } = options;
 
   logger.info(
     { startLedger, endLedger },
     "[backfill] Starting backfill",
   );
 
-  const horizon = new Horizon.Server(horizonUrl);
+  const horizon = horizonClient ?? new Horizon.Server(horizonUrl);
   let currentLedger = startLedger;
   let totalEvents = 0;
 
@@ -86,13 +106,13 @@ export async function runBackfill(
       currentLedger = nextLedger === currentLedger ? currentLedger + 1 : nextLedger;
 
       // Brief delay to avoid rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, pageDelayMs));
     } catch (error) {
       logger.error(
         { err: error, currentLedger },
         "[backfill] Error during backfill",
       );
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
     }
   }
 }
