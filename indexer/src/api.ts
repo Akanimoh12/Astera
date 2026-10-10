@@ -1,3 +1,4 @@
+import cors from "cors";
 /**
  * Express REST API for querying indexed Soroban events.
  */
@@ -41,6 +42,16 @@ export function startApiServer(
   const app = express();
   app.use(express.json());
   app.use(pinoHttp({ logger }));
+
+  // Enable CORS support for frontend consumption (#1549)
+  const allowedOrigin = process.env.CORS_ORIGIN || "*";
+  app.use(
+    cors({
+      origin: allowedOrigin === "*" ? "*" : allowedOrigin.split(",").map((o) => o.trim()),
+      methods: ["GET", "POST", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization"],
+    }),
+  );
 
   // #1039: rate limiting on the query API — exempt /health and /metrics so
   // liveness/monitoring probes are never throttled.
