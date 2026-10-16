@@ -88,9 +88,17 @@ fn write_checkpoint(env: &Env, who: &Address, new_balance: i128) {
         .unwrap_or(0);
 
     let now = env.ledger().timestamp();
-    if let Some(last) = checkpoints.last() {
-        if last.0 == now {
-            checkpoints.set(checkpoints.len() - 1, (now, new_balance));
+    // Once the ring wraps, the physical last element is not necessarily the
+    // newest checkpoint. Resolve the newest slot relative to the head before
+    // applying same-timestamp deduplication.
+    if !checkpoints.is_empty() {
+        let newest_index = if checkpoints.len() < MAX_CHECKPOINTS as usize {
+            checkpoints.len() - 1
+        } else {
+            (head as usize + checkpoints.len() - 1) % checkpoints.len()
+        };
+        if checkpoints.get(newest_index).unwrap().0 == now {
+            checkpoints.set(newest_index, (now, new_balance));
             env.storage().persistent().set(&key, &checkpoints);
             env.storage().persistent().extend_ttl(&key, BALANCE_LIFETIME_THRESHOLD, BALANCE_BUMP_AMOUNT);
             return;
@@ -232,6 +240,7 @@ impl ShareToken {
 
     /// Rotates the admin to `new_admin`. Only the current admin may call this.
     pub fn set_admin(env: Env, new_admin: Address) {
+        require_not_paused(&env);
         let admin: Address = env
             .storage()
             .instance()
