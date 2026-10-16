@@ -37,7 +37,7 @@ async function getAllEvents(
 export function startApiServer(
   pool: Pool,
   port: number,
-  state?: { lastProcessedLedger: string },
+  state?: { lastProcessedLedger: string; indexerActive?: boolean },
 ): void {
   const app = express();
   app.use(express.json());
@@ -76,7 +76,7 @@ export function startApiServer(
         timestamp: new Date().toISOString(),
         lastProcessedLedger,
         latestStoredLedger: latestStoredLedger ? Number(latestStoredLedger) : null,
-        indexerActive: true,
+        indexerActive: state?.indexerActive ?? false,
       });
     } catch (err: any) {
       res.status(500).json({
@@ -449,10 +449,8 @@ export function startApiServer(
 
   app.get("/secondary-market/listings/open", async (_req, res) => {
     try {
-      const events = await getEvents(pool, {
+      const events = await getAllEvents(pool, {
         contractType: "pool",
-        limit: 2000,
-        offset: 0,
       });
 
       const opened = new Set<string>();
@@ -486,11 +484,9 @@ export function startApiServer(
       }
       const addressLower = address.toLowerCase();
 
-      const events = await getEvents(pool, {
+      const events = await getAllEvents(pool, {
         contractType: "pool",
         eventType: "lst_open",
-        limit: 2000,
-        offset: 0,
       });
 
       const listingIds = new Set<string>();
@@ -521,10 +517,8 @@ export function startApiServer(
 
   app.get("/secondary-market/orders/open", async (_req, res) => {
     try {
-      const events = await getEvents(pool, {
+      const events = await getAllEvents(pool, {
         contractType: "pool",
-        limit: 2000,
-        offset: 0,
       });
 
       const opened = new Set<string>();
@@ -805,11 +799,9 @@ export function startApiServer(
           .json({ error: "from/to must be unix timestamps in seconds" });
       }
 
-      const events = await getEvents(pool, {
+      const events = await getAllEvents(pool, {
         contractType: "pool",
         eventType: "rate_snap",
-        limit: 10_000,
-        offset: 0,
       });
 
       const samples = events
