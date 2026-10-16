@@ -11,6 +11,7 @@ import * as dotenv from 'dotenv';
 import { Keypair, TransactionBuilder, BASE_FEE, Contract, rpc as StellarRpc, Address, nativeToScVal, xdr } from '@stellar/stellar-sdk';
 import { MockScreener, HttpScreenerProvider, ScreenerProvider } from './screener';
 import { Monitor } from './monitor';
+import { validateScreenOverride, type ScreenRequestBody } from './validation';
 import type { ComplianceConfig, RiskTier, ScreenDecision } from './types';
 
 dotenv.config();
@@ -185,17 +186,12 @@ async function main() {
       if (req.method === 'POST' && path === '/screen') {
         if (!requireAdmin(req)) return json(401, { error: 'unauthorized' });
         const raw = await readBody(req);
-        const body = JSON.parse(raw || '{}') as {
-          address?: string;
-          name?: string;
-          jurisdiction?: string;
-          submitOnChain?: boolean;
-          status?: ScreenDecision;
-          reasonCode?: number;
-          riskTier?: RiskTier;
-          notesHash?: string;
-        };
+        const body = JSON.parse(raw || '{}') as ScreenRequestBody;
         if (!body.address) return json(400, { error: 'address required' });
+        // #1556: reject override values outside the contract's enums before
+        // they can be encoded as symbols and submitted on-chain.
+        const validationError = validateScreenOverride(body as Record<string, unknown>);
+        if (validationError) return json(400, { error: validationError });
 
         // If operator supplies an explicit decision, use it; else run mock screener.
         let result = await screener.screen(body.address, {
