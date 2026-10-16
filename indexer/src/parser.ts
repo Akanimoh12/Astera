@@ -443,18 +443,18 @@ function extractActor(contractType: string, eventType: string, value: any): stri
       }
     }
 
+    // Tranche events have a typed actor position. Resolve them before the
+    // generic scan so the token address cannot be mistaken for the actor.
     if (contractType === 'TRANCHE') {
-      // deposit/withdraw carry the investor first. Funding, repayment,
-      // default, and config carry a token or invoice first, not an actor.
       switch (eventType) {
         case 'deposit':
         case 'withdraw':
+        case 'fund':
+        case 'repay':
+        case 'default':
           return isStellarAddress(value[0]) ? value[0] : null;
-        case 'paused':
-        case 'unpaused':
+        case 'config':
           return isStellarAddress(value[0]) ? value[0] : null;
-        default:
-          return null;
       }
     }
 

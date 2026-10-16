@@ -96,11 +96,12 @@ export async function runBackfill(
         { err: error, currentLedger, retryCount, maxRetries },
         "[backfill] Error during backfill",
       );
-      if (retryCount >= maxRetries) {
-        throw new Error(`Backfill aborted after ${maxRetries} retries at ledger ${currentLedger}`);
+      retryCount += 1;
+      if (retryCount > maxRetries) {
+        throw new Error(`[backfill] Aborting after ${maxRetries} consecutive failures`);
       }
-      const delay = Math.min(1_000 * 2 ** (retryCount - 1), 60_000);
-      await new Promise((resolve) => setTimeout(resolve, delay));
+      const delayMs = Math.min(1_000 * 2 ** (retryCount - 1), 60_000);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
 }
