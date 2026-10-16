@@ -18,6 +18,22 @@ import type { IndexedEvent } from "./parser";
 import { logger } from "./logger";
 import { register } from "./metrics";
 
+const MAX_REPLAY_EVENTS = Math.max(
+  1_000,
+  Number.parseInt(process.env.MAX_REPLAY_EVENTS || "100000", 10) || 100_000,
+);
+
+function parsePagination(
+  value: unknown,
+  fallback: number,
+  maximum: number,
+): number | null {
+  if (value === undefined) return fallback;
+  if (typeof value !== "string" || !/^\d+$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed <= maximum ? parsed : null;
+}
+
 async function getAllEvents(
   pool: Pool,
   options: GetEventsOptions,
@@ -29,6 +45,9 @@ async function getAllEvents(
   while (true) {
     const page = await getEvents(pool, { ...options, limit: pageSize, offset });
     events.push(...page);
+    if (events.length > MAX_REPLAY_EVENTS) {
+      throw new Error(`Event replay exceeds MAX_REPLAY_EVENTS (${MAX_REPLAY_EVENTS})`);
+    }
     if (page.length < pageSize) return events;
     offset += page.length;
   }
@@ -112,14 +131,19 @@ export function startApiServer(
         after_ledger,
         before_ledger,
       } = req.query;
+      const parsedLimit = parsePagination(limit, 50, 500);
+      const parsedOffset = parsePagination(offset, 0, Number.MAX_SAFE_INTEGER);
+      if (parsedLimit === null || parsedOffset === null) {
+        return res.status(400).json({ error: "limit must be an integer from 0 to 500 and offset must be a non-negative integer" });
+      }
 
       const events = await getEvents(pool, {
         contractId: contract_id as string | undefined,
         contractType: contract_type as string | undefined,
         eventType: event_type as string | undefined,
         actorAddress: actor_address as string | undefined,
-        limit: parseInt(limit as string, 10),
-        offset: parseInt(offset as string, 10),
+        limit: parsedLimit,
+        offset: parsedOffset,
         afterLedger:
           typeof after_ledger === "string" ? parseInt(after_ledger, 10) : undefined,
         beforeLedger:
@@ -137,11 +161,16 @@ export function startApiServer(
     try {
       const { actorAddress } = req.params;
       const { limit = "50", offset = "0" } = req.query;
+      const parsedLimit = parsePagination(limit, 50, 500);
+      const parsedOffset = parsePagination(offset, 0, Number.MAX_SAFE_INTEGER);
+      if (parsedLimit === null || parsedOffset === null) {
+        return res.status(400).json({ error: "invalid limit or offset" });
+      }
 
       const events = await getEvents(pool, {
         actorAddress,
-        limit: parseInt(limit as string, 10),
-        offset: parseInt(offset as string, 10),
+        limit: parsedLimit,
+        offset: parsedOffset,
       });
 
       res.json({ actorAddress, events, count: events.length });
@@ -155,11 +184,16 @@ export function startApiServer(
     try {
       const { contractId } = req.params;
       const { limit = "50", offset = "0" } = req.query;
+      const parsedLimit = parsePagination(limit, 50, 500);
+      const parsedOffset = parsePagination(offset, 0, Number.MAX_SAFE_INTEGER);
+      if (parsedLimit === null || parsedOffset === null) {
+        return res.status(400).json({ error: "invalid limit or offset" });
+      }
 
       const events = await getEvents(pool, {
         contractId,
-        limit: parseInt(limit as string, 10),
-        offset: parseInt(offset as string, 10),
+        limit: parsedLimit,
+        offset: parsedOffset,
       });
 
       res.json({ contractId, events, count: events.length });
@@ -173,11 +207,16 @@ export function startApiServer(
     try {
       const { eventType } = req.params;
       const { limit = "50", offset = "0" } = req.query;
+      const parsedLimit = parsePagination(limit, 50, 500);
+      const parsedOffset = parsePagination(offset, 0, Number.MAX_SAFE_INTEGER);
+      if (parsedLimit === null || parsedOffset === null) {
+        return res.status(400).json({ error: "invalid limit or offset" });
+      }
 
       const events = await getEvents(pool, {
         eventType,
-        limit: parseInt(limit as string, 10),
-        offset: parseInt(offset as string, 10),
+        limit: parsedLimit,
+        offset: parsedOffset,
       });
 
       res.json({ eventType, events, count: events.length });
@@ -833,10 +872,12 @@ export function startApiServer(
   app.get("/compliance/flagged", async (req, res) => {
     try {
       const { limit = "100" } = req.query;
+      const parsedLimit = parsePagination(limit, 100, 500);
+      if (parsedLimit === null) return res.status(400).json({ error: "invalid limit" });
       const events = await getEvents(pool, {
         contractType: "compliance",
         eventType: "screened",
-        limit: parseInt(limit as string, 10),
+        limit: parsedLimit,
         offset: 0,
       });
       const latest = new Map<
@@ -877,9 +918,11 @@ export function startApiServer(
     try {
       const { address } = req.params;
       const { limit = "100" } = req.query;
+      const parsedLimit = parsePagination(limit, 100, 500);
+      if (parsedLimit === null) return res.status(400).json({ error: "invalid limit" });
       const events = await getEvents(pool, {
         contractType: "compliance",
-        limit: parseInt(limit as string, 10),
+        limit: parsedLimit,
         offset: 0,
       });
       const history = events
