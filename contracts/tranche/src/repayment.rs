@@ -14,6 +14,9 @@ pub fn distribute_waterfall_repayment(
     total_due: i128,
     elapsed_secs: u64,
 ) -> (i128, i128) {
+    if total_due <= 0 {
+        panic_with_error!(env, TrancheError::InvalidAmount);
+    }
     let mut pool: TranchePool = env
         .storage()
         .instance()
