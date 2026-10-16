@@ -29,7 +29,7 @@ export default function InsuranceCoverageBadge({
   const [purchaseLoading, setPurchaseLoading] = useState(false);
   const [claimLoading, setClaimLoading] = useState(false);
 
-  const { data: coverage, mutate: mutateCoverage } = useSWR(
+  const { data: coverage, error: coverageError, mutate: mutateCoverage } = useSWR(
     ['insurance-coverage', fundedInvoice.invoiceId],
     ([, id]) => getCoverageRecord(id),
   );
@@ -120,7 +120,11 @@ export default function InsuranceCoverageBadge({
         )}
       </div>
 
-      {!coverage ? (
+      {coverageError ? (
+        <p className="mt-2 text-sm text-red-400">
+          Unable to load coverage details. Please refresh or try again later.
+        </p>
+      ) : !coverage ? (
         <>
           <p className="mt-1 text-sm text-brand-muted">
             Not covered yet. Purchase default-insurance coverage for this invoice.
