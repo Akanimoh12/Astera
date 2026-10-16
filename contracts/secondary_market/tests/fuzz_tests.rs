@@ -10,10 +10,14 @@
 //   MAX_ORDERS_PER_BOOK_SIDE = 30
 //   PRICE_SCALE              = 10_000_000
 //
-// All tests use `CoFunding` orders because that kind requires only a
+// Most tests use `CoFunding` orders because that kind requires only a
 // pre-funded co-funding round, which the shared `setup_env` helper
-// establishes once per test. `SingleFunded` shares the same matching
-// code-path; covering it would just duplicate the setup complexity.
+// establishes once per test. `SingleFunded` takes a different ownership
+// validation branch (`list_position`'s `get_investor_position` check) and
+// deals in raw token amounts rather than CoFunding's bounded [0, 10_000]
+// bps — relevant to `price * quantity` overflow margins (#1519). A smaller,
+// targeted set of properties below (`prop_single_funded_*`) covers the
+// matching engine's core invariants on that path specifically.
 
 use proptest::prelude::*;
 use soroban_sdk::{
@@ -290,6 +294,68 @@ fn place_order(
             expires_at: 0u64,
         },
     )
+}
+
+/// Place a SingleFunded order; thin wrapper to keep test bodies readable.
+fn place_single_funded_order(
+    market: &SecondaryMarketClient<'_>,
+    owner: &Address,
+    invoice_id: u64,
+    side: OrderSide,
+    amount: u64,
+    price: i128,
+) -> u64 {
+    market.place_order(
+        owner,
+        &PlaceOrderRequest {
+            invoice_id,
+            kind: ListingKind::SingleFunded,
+            side,
+            amount_or_bps: amount,
+            price,
+            expires_at: 0u64,
+        },
+    )
+}
+
+/// Fund a fresh, non-co-funded invoice directly (not via `open_co_funding`,
+/// so `FundedInvoice.co_funding_round_id` stays `None` as `list_position`'s
+/// `SingleFunded` branch requires), and attribute `deployed_amount` of that
+/// principal to `investor` specifically.
+///
+/// `fund_invoice`'s own accounting is pool-wide (`TokenTotals.total_deployed`);
+/// it never updates a specific investor's own `InvestorPosition.deployed` —
+/// that field is otherwise only ever touched by secondary-market settlement
+/// itself (the buyer/seller transfer in `settle_fill`). So, same as
+/// `available_of`'s direct storage read above, this writes it directly via
+/// `env.as_contract`, mirroring the one real way a SingleFunded seller's
+/// position gets established outside of a settlement that already assumes
+/// one exists.
+fn setup_single_funded_position(
+    env: &Env,
+    pool: &FundingPoolClient<'_>,
+    admin: &Address,
+    usdc: &Address,
+    invoice_id: u64,
+    deployed_amount: i128,
+) -> Address {
+    let investor = Address::generate(env);
+    let deposit_amount = deployed_amount.saturating_add(deployed_amount / 10 + 1);
+    token::StellarAssetClient::new(env, usdc).mint(&investor, &deposit_amount);
+    pool.deposit(&investor, usdc, &deposit_amount, &None);
+
+    let sme = Address::generate(env);
+    let due_date = env.ledger().timestamp() + 86_400;
+    pool.fund_invoice(admin, &invoice_id, &deployed_amount, &sme, &due_date, usdc);
+
+    env.as_contract(&pool.address, || {
+        let key = DataKey::InvestorPosition(investor.clone(), usdc.clone());
+        let mut position: InvestorPosition = env.storage().persistent().get(&key).unwrap_or_default();
+        position.deployed = deployed_amount;
+        env.storage().persistent().set(&key, &position);
+    });
+
+    investor
 }
 
 // ── Properties ───────────────────────────────────────────────────────────────
@@ -881,5 +947,127 @@ proptest! {
             "bid should rest Open (no valid ask to cross); got {:?}",
             bid.status
         );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SingleFunded — core matching invariants (#1519)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Price-time priority holds on the SingleFunded path too.
+    ///
+    /// Invariant: when two SingleFunded asks rest on the same invoice at
+    /// strictly different prices and a single crossing bid arrives with
+    /// enough quantity to cross both, the cheaper ask fills first — same
+    /// invariant as `prop_price_time_priority_asks_filled_cheapest_first`,
+    /// proven here on the different ownership-validation branch and
+    /// raw-amount units `SingleFunded` actually uses.
+    #[test]
+    fn prop_single_funded_price_time_priority(
+        amount in 100i128..=5_000i128,
+    ) {
+        let env = Env::default();
+        let (pool, market, admin, _bootstrap_invoice, usdc) = setup_env(&env);
+
+        // Both sellers fund the SAME invoice (principal accumulates; each
+        // still gets their own `deployed` position) so both asks land on
+        // one shared SingleFunded book.
+        let shared_invoice: u64 = 100;
+        let seller_cheap = setup_single_funded_position(&env, &pool, &admin, &usdc, shared_invoice, amount);
+        let seller_expensive = setup_single_funded_position(&env, &pool, &admin, &usdc, shared_invoice, amount);
+
+        let cheap_price = PRICE_SCALE;
+        let expensive_price = PRICE_SCALE * 2;
+        let ask_cheap_id = place_single_funded_order(&market, &seller_cheap, shared_invoice, OrderSide::Ask, amount as u64, cheap_price);
+        let ask_expensive_id = place_single_funded_order(&market, &seller_expensive, shared_invoice, OrderSide::Ask, amount as u64, expensive_price);
+
+        // A bid large enough to cross only the cheaper ask.
+        let buyer = fund_participant(&env, &pool, &usdc, cheap_price * amount + 1_000);
+        place_single_funded_order(&market, &buyer, shared_invoice, OrderSide::Bid, amount as u64, cheap_price);
+
+        let ask_cheap = market.get_order(&ask_cheap_id).unwrap();
+        let ask_expensive = market.get_order(&ask_expensive_id).unwrap();
+
+        prop_assert_eq!(
+            ask_cheap.status,
+            OrderStatus::Filled,
+            "cheaper SingleFunded ask should fill first; got {:?}",
+            ask_cheap.status
+        );
+        prop_assert_eq!(
+            ask_expensive.status,
+            OrderStatus::Open,
+            "more expensive SingleFunded ask should still be Open; got {:?}",
+            ask_expensive.status
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    /// No self-match on the SingleFunded path.
+    ///
+    /// Invariant: if the same address places both a SingleFunded ask and a
+    /// crossing bid on the same invoice, no fill occurs — both orders
+    /// remain Open. Same invariant as `prop_no_self_match`, proven on the
+    /// SingleFunded validation branch.
+    #[test]
+    fn prop_single_funded_no_self_match(
+        amount in 100i128..=5_000i128,
+    ) {
+        let env = Env::default();
+        let (pool, market, admin, _bootstrap_invoice, usdc) = setup_env(&env);
+
+        let invoice_id: u64 = 110;
+        let actor = setup_single_funded_position(&env, &pool, &admin, &usdc, invoice_id, amount);
+
+        let ask_id = place_single_funded_order(&market, &actor, invoice_id, OrderSide::Ask, amount as u64, PRICE_SCALE);
+        let bid_id = place_single_funded_order(&market, &actor, invoice_id, OrderSide::Bid, amount as u64, PRICE_SCALE * 2);
+
+        let ask = market.get_order(&ask_id).unwrap();
+        let bid = market.get_order(&bid_id).unwrap();
+
+        prop_assert_eq!(ask.status, OrderStatus::Open, "ask should remain Open after self-match attempt; got {:?}", ask.status);
+        prop_assert_eq!(bid.status, OrderStatus::Open, "bid should remain Open after self-match attempt; got {:?}", bid.status);
+
+        let (_, deployed) = pool.get_investor_position(&actor, &usdc);
+        prop_assert_eq!(deployed, amount, "actor's deployed position changed despite self-match block");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    /// A fill whose `price * quantity` would overflow i128 breaks matching
+    /// cleanly instead of panicking or executing an incorrect fill.
+    ///
+    /// Invariant (from #1519's own framing): SingleFunded deals in raw
+    /// token amounts that can be orders of magnitude larger than
+    /// CoFunding's bounded [0, 10_000] bps, so this overflow margin is
+    /// actually reachable here in a way CoFunding's fuzz coverage can never
+    /// exercise. `fill_total_price` already returns `None` on overflow and
+    /// the matching loop `break`s on that — this proves that path holds for
+    /// a SingleFunded fill specifically: the ask remains Open (never
+    /// Filled/PartiallyFilled) and no tokens move.
+    #[test]
+    fn prop_single_funded_overflow_price_breaks_matching_cleanly(
+        amount in 1_000_000_000i128..=5_000_000_000i128,
+    ) {
+        let env = Env::default();
+        let (pool, market, admin, _bootstrap_invoice, usdc) = setup_env(&env);
+
+        let invoice_id: u64 = 120;
+        let seller = setup_single_funded_position(&env, &pool, &admin, &usdc, invoice_id, amount);
+
+        // price chosen so that price * amount overflows i128::MAX
+        // (i128::MAX ~= 1.7e38; PRICE_SCALE = 1e7; amount ~= 1e9..5e9).
+        let overflow_price: i128 = i128::MAX / 2;
+        let ask_id = place_single_funded_order(&market, &seller, invoice_id, OrderSide::Ask, amount as u64, overflow_price);
+
+        let buyer = fund_participant(&env, &pool, &usdc, 1);
+        let bid_id = place_single_funded_order(&market, &buyer, invoice_id, OrderSide::Bid, amount as u64, overflow_price);
+
+        let ask = market.get_order(&ask_id).unwrap();
+        let bid = market.get_order(&bid_id).unwrap();
+
+        prop_assert_eq!(ask.status, OrderStatus::Open, "overflowing fill must not mark the ask Filled/PartiallyFilled; got {:?}", ask.status);
+        prop_assert_eq!(bid.status, OrderStatus::Open, "overflowing fill must not mark the bid Filled/PartiallyFilled; got {:?}", bid.status);
+
+        let (_, deployed_after) = pool.get_investor_position(&seller, &usdc);
+        prop_assert_eq!(deployed_after, amount, "seller's deployed position must be unchanged when matching breaks on overflow");
     }
 }
