@@ -148,14 +148,28 @@ Manages invoice lifecycle from creation through repayment or default. Invoices c
 
 ## Pool Contract
 
-The main contract managing pool operations, investor positions, and capital deployment across multiple invoices.
+The main contract managing pool operations, investor positions, and capital deployment across multiple invoices and tokens.
 
 ### Entrypoints
 
-- `deploy(investor, invoice_id, amount)` — Deploy available balance into an invoice
-- `withdraw(investor, amount)` — Withdraw from pool balance
-- `get_investor_balance(investor)` — Get investor's available and deployed balances
-- `get_pool_stats()` — Get overall pool statistics
+- `initialize(admin, token, share_token, invoice_contract)` — Initialize the pool with a primary stablecoin and share token
+- `deposit(investor, token, amount)` — Deposit stablecoin, receive share tokens proportionally
+- `withdraw(investor, token, shares)` — Burn share tokens and withdraw stablecoin
+- `request_withdrawal(investor, token, shares)` — Queue a withdrawal when liquidity is insufficient
+- `cancel_withdrawal_request(investor, token, request_id)` — Cancel a queued withdrawal request
+- `fund_invoice(admin, invoice_id, amount, sme, due_date, token)` — Deploy capital to fund an invoice
+- `repay_invoice(invoice_id, payer, amount)` — Accept a repayment (partial or full) for a funded invoice
+- `estimate_repayment(invoice_id)` — View the current amount owed including accrued interest
+- `claim_yield(investor, token)` — Claim accrued yield for an investor's token position
+- `get_token_totals(token)` — Get pool value, deployed amount, and fee totals for a token
+- `get_funded_invoice(invoice_id)` — Retrieve a funded invoice record
+- `available_liquidity(token)` — Get uninvested token balance available for new invoices
+- `accepted_tokens()` — List all accepted stablecoin addresses
+- `add_token(admin, token, share_token)` — Add a new accepted stablecoin with its share token
+- `remove_token(admin, token)` — Remove a token when balances are zero
+- `get_config()` — Retrieve pool configuration (fees, yield, rate model settings)
+- `set_factoring_fee(admin, fee_bps)` — Update the factoring fee in basis points
+- `get_storage_stats()` — Get funded invoice counts and totals
 
 ## Tranche Contract
 
@@ -260,12 +274,19 @@ Tracks and rewards referrals for borrowers and investors joining the platform.
 
 ## Share Contract
 
-Represents co-funding shares for investors in financed invoices (ERC-20-like token).
+A flat SEP-41-style fungible token contract representing pool deposit shares. There is no `invoice_id` parameter — balances are tracked per address only.
 
 ### Entrypoints
 
-- `mint(recipient, invoice_id, bps_amount)` — Mint co-funding shares
-- `burn(holder, invoice_id, bps_amount)` — Burn shares
-- `balance_of(holder, invoice_id)` — Get share balance
-- `transfer(from, to, invoice_id, bps_amount)` — Transfer shares between investors
-- `allowance(owner, spender, invoice_id)` — Get spending allowance
+- `initialize(admin, decimals, name, symbol)` — Initialize the token with metadata
+- `mint(to, amount)` — Mint shares to an address (admin only)
+- `burn(from, amount)` — Burn shares from an address (admin only)
+- `transfer(from, to, amount)` — Transfer shares between addresses
+- `transfer_from(spender, from, to, amount)` — Transfer using an approved allowance
+- `approve(owner, spender, amount)` — Set a spending allowance
+- `allowance(owner, spender)` — Read current allowance
+- `balance(id)` — Get share balance of an address
+- `total_supply()` — Get total outstanding share supply
+- `decimals()` — Get token decimal places
+- `name()` — Get token name
+- `symbol()` — Get token symbol
