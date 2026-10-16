@@ -27,7 +27,10 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState<NotificationAlert[]>([]);
   const [open, setOpen] = useState(false);
   const [hasNew, setHasNew] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const unsub = notificationService.subscribe((alert) => {
@@ -42,12 +45,57 @@ export default function NotificationBell() {
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const trigger = triggerRef.current;
+    previousFocusRef.current = document.activeElement as HTMLElement;
+    const panel = panelRef.current;
+    const firstFocusable = panel?.querySelector<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    (firstFocusable ?? panel)?.focus();
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab' || !panelRef.current) return;
+      const focusable = Array.from(
+        panelRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (focusable.length === 0) {
+        event.preventDefault();
+        panelRef.current.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      (previousFocusRef.current ?? trigger)?.focus();
+    };
   }, [open]);
 
   function handleOpen() {
@@ -63,9 +111,10 @@ export default function NotificationBell() {
   const unreadCount = notifications.length;
 
   return (
-    <div className="relative" ref={panelRef}>
+    <div className="relative" ref={containerRef}>
       {/* Bell button */}
       <button
+        ref={triggerRef}
         onClick={handleOpen}
         aria-label={unreadCount > 0 ? t('buttonUnread', { count: unreadCount }) : t('button')}
         aria-haspopup="true"
@@ -103,8 +152,11 @@ export default function NotificationBell() {
       {/* Dropdown panel */}
       {open && (
         <div
+          ref={panelRef}
           role="dialog"
+          aria-modal="true"
           aria-label={t('dialog')}
+          tabIndex={-1}
           className="absolute right-0 mt-2 w-80 max-h-[420px] flex flex-col bg-brand-card border border-brand-border rounded-2xl shadow-2xl z-[200] overflow-hidden"
         >
           {/* Header */}

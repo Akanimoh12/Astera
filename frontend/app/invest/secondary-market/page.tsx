@@ -219,7 +219,7 @@ export default function SecondaryMarketPage() {
     const hours = Number(orderExpiresHours);
     const expiresAt =
       orderExpiresHours && Number.isFinite(hours) && hours > 0
-        ? Math.floor(Date.now() / 1000) + Math.round(hours * 3600)
+        ? Math.floor(new Date().getTime() / 1000) + Math.round(hours * 3600)
         : 0;
 
     setTxLoading(true);
@@ -370,54 +370,56 @@ export default function SecondaryMarketPage() {
           </div>
         ) : (
           <div className="bg-brand-card border border-brand-border rounded-2xl overflow-hidden">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-brand-dark border-b border-brand-border text-brand-muted">
-                <tr>
-                  <th className="px-6 py-4 font-medium">Invoice</th>
-                  <th className="px-6 py-4 font-medium">Type</th>
-                  <th className="px-6 py-4 font-medium">Amount</th>
-                  <th className="px-6 py-4 font-medium">Price</th>
-                  <th className="px-6 py-4 font-medium text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-brand-border">
-                {openListings
-                  .filter((l) => l.status === 'Open')
-                  .map((listing) => {
-                    const isOwnListing =
-                      wallet.address &&
-                      listing.seller.toLowerCase() === wallet.address.toLowerCase();
-                    return (
-                      <tr
-                        key={listing.listingId}
-                        className="hover:bg-brand-dark/50 transition-colors"
-                      >
-                        <td className="px-6 py-4">#{listing.invoiceId}</td>
-                        <td className="px-6 py-4">{KIND_LABEL[listing.kind]}</td>
-                        <td className="px-6 py-4">
-                          {listing.kind === 'CoFunding'
-                            ? `${(Number(listing.amountOrBps) / 100).toFixed(2)}%`
-                            : formatUSDC(listing.amountOrBps)}
-                        </td>
-                        <td className="px-6 py-4">{formatUSDC(listing.price)}</td>
-                        <td className="px-6 py-4 text-right">
-                          {isOwnListing ? (
-                            <span className="text-brand-muted text-xs">Your listing</span>
-                          ) : (
-                            <button
-                              onClick={() => handleBuy(listing)}
-                              disabled={!wallet.connected || txLoading}
-                              className="px-3 py-1.5 bg-brand-gold text-brand-dark rounded-lg text-xs font-semibold hover:bg-brand-amber transition-colors disabled:opacity-50"
-                            >
-                              Buy
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-left text-sm">
+                <thead className="bg-brand-dark border-b border-brand-border text-brand-muted">
+                  <tr>
+                    <th className="px-6 py-4 font-medium">Invoice</th>
+                    <th className="px-6 py-4 font-medium">Type</th>
+                    <th className="px-6 py-4 font-medium">Amount</th>
+                    <th className="px-6 py-4 font-medium">Price</th>
+                    <th className="px-6 py-4 font-medium text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-brand-border">
+                  {openListings
+                    .filter((l) => l.status === 'Open')
+                    .map((listing) => {
+                      const isOwnListing =
+                        wallet.address &&
+                        listing.seller.toLowerCase() === wallet.address.toLowerCase();
+                      return (
+                        <tr
+                          key={listing.listingId}
+                          className="hover:bg-brand-dark/50 transition-colors"
+                        >
+                          <td className="px-6 py-4">#{listing.invoiceId}</td>
+                          <td className="px-6 py-4">{KIND_LABEL[listing.kind]}</td>
+                          <td className="px-6 py-4">
+                            {listing.kind === 'CoFunding'
+                              ? `${(Number(listing.amountOrBps) / 100).toFixed(2)}%`
+                              : formatUSDC(listing.amountOrBps)}
+                          </td>
+                          <td className="px-6 py-4">{formatUSDC(listing.price)}</td>
+                          <td className="px-6 py-4 text-right">
+                            {isOwnListing ? (
+                              <span className="text-brand-muted text-xs">Your listing</span>
+                            ) : (
+                              <button
+                                onClick={() => handleBuy(listing)}
+                                disabled={!wallet.connected || txLoading}
+                                className="px-3 py-1.5 bg-brand-gold text-brand-dark rounded-lg text-xs font-semibold hover:bg-brand-amber transition-colors disabled:opacity-50"
+                              >
+                                Buy
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
@@ -437,44 +439,49 @@ export default function SecondaryMarketPage() {
           </div>
         ) : (
           <div className="bg-brand-card border border-brand-border rounded-2xl overflow-hidden">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-brand-dark border-b border-brand-border text-brand-muted">
-                <tr>
-                  <th className="px-6 py-4 font-medium">Invoice</th>
-                  <th className="px-6 py-4 font-medium">Type</th>
-                  <th className="px-6 py-4 font-medium">Price</th>
-                  <th className="px-6 py-4 font-medium">Status</th>
-                  <th className="px-6 py-4 font-medium text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-brand-border">
-                {myListings.map((listing) => (
-                  <tr key={listing.listingId} className="hover:bg-brand-dark/50 transition-colors">
-                    <td className="px-6 py-4">#{listing.invoiceId}</td>
-                    <td className="px-6 py-4">{KIND_LABEL[listing.kind]}</td>
-                    <td className="px-6 py-4">{formatUSDC(listing.price)}</td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${STATUS_STYLES[listing.status]}`}
-                      >
-                        {listing.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      {listing.status === 'Open' && (
-                        <button
-                          onClick={() => handleCancel(listing)}
-                          disabled={txLoading}
-                          className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-xs font-semibold hover:bg-red-500/30 transition-colors disabled:opacity-50"
-                        >
-                          Cancel
-                        </button>
-                      )}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[680px] text-left text-sm">
+                <thead className="bg-brand-dark border-b border-brand-border text-brand-muted">
+                  <tr>
+                    <th className="px-6 py-4 font-medium">Invoice</th>
+                    <th className="px-6 py-4 font-medium">Type</th>
+                    <th className="px-6 py-4 font-medium">Price</th>
+                    <th className="px-6 py-4 font-medium">Status</th>
+                    <th className="px-6 py-4 font-medium text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-brand-border">
+                  {myListings.map((listing) => (
+                    <tr
+                      key={listing.listingId}
+                      className="hover:bg-brand-dark/50 transition-colors"
+                    >
+                      <td className="px-6 py-4">#{listing.invoiceId}</td>
+                      <td className="px-6 py-4">{KIND_LABEL[listing.kind]}</td>
+                      <td className="px-6 py-4">{formatUSDC(listing.price)}</td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${STATUS_STYLES[listing.status]}`}
+                        >
+                          {listing.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        {listing.status === 'Open' && (
+                          <button
+                            onClick={() => handleCancel(listing)}
+                            disabled={txLoading}
+                            className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-xs font-semibold hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
@@ -657,64 +664,68 @@ export default function SecondaryMarketPage() {
           </div>
         ) : (
           <div className="bg-brand-card border border-brand-border rounded-2xl overflow-hidden">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-brand-dark border-b border-brand-border text-brand-muted">
-                <tr>
-                  <th className="px-6 py-4 font-medium">Invoice</th>
-                  <th className="px-6 py-4 font-medium">Side</th>
-                  <th className="px-6 py-4 font-medium">Price</th>
-                  <th className="px-6 py-4 font-medium">Remaining</th>
-                  <th className="px-6 py-4 font-medium">Status</th>
-                  <th className="px-6 py-4 font-medium text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-brand-border">
-                {myOrders.map((order) => {
-                  const canCancel = order.status === 'Open' || order.status === 'PartiallyFilled';
-                  const canExpire =
-                    canCancel && order.expiresAt !== 0 && order.expiresAt <= Date.now() / 1000;
-                  return (
-                    <tr key={order.orderId} className="hover:bg-brand-dark/50 transition-colors">
-                      <td className="px-6 py-4">#{order.invoiceId}</td>
-                      <td className="px-6 py-4">{order.side}</td>
-                      <td className="px-6 py-4">{formatOrderPrice(order.price)}</td>
-                      <td className="px-6 py-4">
-                        {order.kind === 'CoFunding'
-                          ? `${(Number(order.remaining) / 100).toFixed(2)}%`
-                          : formatUSDC(order.remaining)}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${ORDER_STATUS_STYLES[order.status]}`}
-                        >
-                          {order.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right space-x-2">
-                        {canExpire && (
-                          <button
-                            onClick={() => handleExpireOrder(order)}
-                            disabled={txLoading}
-                            className="px-3 py-1.5 bg-brand-dark text-brand-muted border border-brand-border rounded-lg text-xs font-semibold hover:bg-brand-border/50 transition-colors disabled:opacity-50"
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="bg-brand-dark border-b border-brand-border text-brand-muted">
+                  <tr>
+                    <th className="px-6 py-4 font-medium">Invoice</th>
+                    <th className="px-6 py-4 font-medium">Side</th>
+                    <th className="px-6 py-4 font-medium">Price</th>
+                    <th className="px-6 py-4 font-medium">Remaining</th>
+                    <th className="px-6 py-4 font-medium">Status</th>
+                    <th className="px-6 py-4 font-medium text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-brand-border">
+                  {myOrders.map((order) => {
+                    const canCancel = order.status === 'Open' || order.status === 'PartiallyFilled';
+                    const canExpire =
+                      canCancel &&
+                      order.expiresAt !== 0 &&
+                      order.expiresAt <= new Date().getTime() / 1000;
+                    return (
+                      <tr key={order.orderId} className="hover:bg-brand-dark/50 transition-colors">
+                        <td className="px-6 py-4">#{order.invoiceId}</td>
+                        <td className="px-6 py-4">{order.side}</td>
+                        <td className="px-6 py-4">{formatOrderPrice(order.price)}</td>
+                        <td className="px-6 py-4">
+                          {order.kind === 'CoFunding'
+                            ? `${(Number(order.remaining) / 100).toFixed(2)}%`
+                            : formatUSDC(order.remaining)}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${ORDER_STATUS_STYLES[order.status]}`}
                           >
-                            Expire
-                          </button>
-                        )}
-                        {canCancel && (
-                          <button
-                            onClick={() => handleCancelOrder(order)}
-                            disabled={txLoading}
-                            className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-xs font-semibold hover:bg-red-500/30 transition-colors disabled:opacity-50"
-                          >
-                            Cancel
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                            {order.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right space-x-2">
+                          {canExpire && (
+                            <button
+                              onClick={() => handleExpireOrder(order)}
+                              disabled={txLoading}
+                              className="px-3 py-1.5 bg-brand-dark text-brand-muted border border-brand-border rounded-lg text-xs font-semibold hover:bg-brand-border/50 transition-colors disabled:opacity-50"
+                            >
+                              Expire
+                            </button>
+                          )}
+                          {canCancel && (
+                            <button
+                              onClick={() => handleCancelOrder(order)}
+                              disabled={txLoading}
+                              className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-xs font-semibold hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

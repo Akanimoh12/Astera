@@ -243,61 +243,63 @@ export default function CoFundingPage() {
           </div>
         ) : (
           <div className="bg-brand-card border border-brand-border rounded-2xl overflow-hidden">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-brand-dark border-b border-brand-border text-brand-muted">
-                <tr>
-                  <th className="px-6 py-4 font-medium">Invoice</th>
-                  <th className="px-6 py-4 font-medium">Share</th>
-                  <th className="px-6 py-4 font-medium">Round Status</th>
-                  <th className="px-6 py-4 font-medium text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-brand-border">
-                {positions.map((pos) => {
-                  const round = rounds.find((r) => r.invoiceId === pos.invoiceId);
-                  return (
-                    <tr key={pos.invoiceId} className="hover:bg-brand-dark/50 transition-colors">
-                      <td className="px-6 py-4">#{pos.invoiceId}</td>
-                      <td className="px-6 py-4">{(pos.bps / 100).toFixed(2)}%</td>
-                      <td className="px-6 py-4">
-                        {round ? (
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${STATUS_STYLES[round.status]}`}
-                          >
-                            {round.status}
-                          </span>
-                        ) : (
-                          <span className="text-brand-muted text-xs">—</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right space-x-2">
-                        {round?.status === 'Open' && (
-                          <button
-                            onClick={() => handleWithdrawCommitment(pos.invoiceId)}
-                            disabled={txLoading}
-                            className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-xs font-semibold hover:bg-red-500/30 transition-colors disabled:opacity-50"
-                          >
-                            Withdraw
-                          </button>
-                        )}
-                        {round?.status === 'Filled' && (
-                          <button
-                            onClick={() => {
-                              setTransferTarget(pos.invoiceId);
-                              setTransferBps(String(pos.bps));
-                            }}
-                            disabled={txLoading}
-                            className="px-3 py-1.5 bg-brand-dark border border-brand-border rounded-lg text-xs font-semibold hover:bg-brand-border transition-colors disabled:opacity-50"
-                          >
-                            Transfer
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-sm">
+                <thead className="bg-brand-dark border-b border-brand-border text-brand-muted">
+                  <tr>
+                    <th className="px-6 py-4 font-medium">Invoice</th>
+                    <th className="px-6 py-4 font-medium">Share</th>
+                    <th className="px-6 py-4 font-medium">Round Status</th>
+                    <th className="px-6 py-4 font-medium text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-brand-border">
+                  {positions.map((pos) => {
+                    const round = rounds.find((r) => r.invoiceId === pos.invoiceId);
+                    return (
+                      <tr key={pos.invoiceId} className="hover:bg-brand-dark/50 transition-colors">
+                        <td className="px-6 py-4">#{pos.invoiceId}</td>
+                        <td className="px-6 py-4">{(pos.bps / 100).toFixed(2)}%</td>
+                        <td className="px-6 py-4">
+                          {round ? (
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${STATUS_STYLES[round.status]}`}
+                            >
+                              {round.status}
+                            </span>
+                          ) : (
+                            <span className="text-brand-muted text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-right space-x-2">
+                          {round?.status === 'Open' && (
+                            <button
+                              onClick={() => handleWithdrawCommitment(pos.invoiceId)}
+                              disabled={txLoading}
+                              className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-xs font-semibold hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                            >
+                              Withdraw
+                            </button>
+                          )}
+                          {round?.status === 'Filled' && (
+                            <button
+                              onClick={() => {
+                                setTransferTarget(pos.invoiceId);
+                                setTransferBps(String(pos.bps));
+                              }}
+                              disabled={txLoading}
+                              className="px-3 py-1.5 bg-brand-dark border border-brand-border rounded-lg text-xs font-semibold hover:bg-brand-border transition-colors disabled:opacity-50"
+                            >
+                              Transfer
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
