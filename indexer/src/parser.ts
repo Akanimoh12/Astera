@@ -423,23 +423,24 @@ function extractActor(contractType: string, eventType: string, value: any): stri
       }
     }
 
+    // Tranche events have a typed actor position. Resolve them before the
+    // generic scan so the token address cannot be mistaken for the actor.
+    if (contractType === 'TRANCHE') {
+      switch (eventType) {
+        case 'deposit':
+        case 'withdraw':
+        case 'fund':
+        case 'repay':
+        case 'default':
+          return isStellarAddress(value[0]) ? value[0] : null;
+        case 'config':
+          return isStellarAddress(value[0]) ? value[0] : null;
+      }
+    }
+
     // Fallback: scan array elements for a valid Stellar address
     for (const item of value) {
       if (isStellarAddress(item)) return item;
-    }
-  }
-
-  // Tranche events: first field is usually the actor
-  if (contractType === 'TRANCHE') {
-    switch (eventType) {
-      case 'deposit':
-      case 'withdraw':
-      case 'fund':
-      case 'repay':
-      case 'default':
-        return value[0]; // investor or caller
-      case 'config':
-        return value[0]; // admin
     }
   }
 
