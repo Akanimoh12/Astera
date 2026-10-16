@@ -12,6 +12,7 @@ export { AuctionClient } from './clients/auction';
 export { InsuranceClient } from './clients/insurance';
 export { GovernanceClient } from './clients/governance';
 export { ReferralClient } from './clients/referral';
+export { ShareClient } from './clients/share';
 export { AsteraClient } from './astera-client';
 export * from './types';
 export * from './stellar';
@@ -44,6 +45,8 @@ export type {
 } from './generated/insurance';
 export { Errors as ReferralErrors } from './generated/referral';
 export type { ReferralStats, LeaderboardEntry } from './generated/referral';
+export { Errors as ShareErrors } from './generated/share';
+export type { ShareTokenMetadata } from './generated/share';
 export {
   parseContractEvent,
   ContractEvent,
