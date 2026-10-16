@@ -39,6 +39,20 @@ function saltStorageKey(caseId: number, juror: string): string {
   return `astera:arbitration:salt:${caseId}:${juror}`;
 }
 
+function getStoredSalt(caseId: number, juror: string): string | null {
+  if (typeof window === 'undefined') return null;
+  return (
+    window.localStorage.getItem(saltStorageKey(caseId, juror)) ||
+    window.sessionStorage.getItem(saltStorageKey(caseId, juror))
+  );
+}
+
+function saveStoredSalt(caseId: number, juror: string, data: string): void {
+  if (typeof window === 'undefined') return;
+  try { window.localStorage.setItem(saltStorageKey(caseId, juror), data); } catch {}
+  try { window.sessionStorage.setItem(saltStorageKey(caseId, juror), data); } catch {}
+}
+
 function formatStake(amount: bigint): string {
   return (Number(amount) / 10_000_000).toLocaleString();
 }
@@ -148,10 +162,10 @@ export default function ArbitrationJurorsPage() {
     try {
       const juror = parseStellarAddress(wallet.address);
       const salt = generateArbitrationSalt();
-      // Persisted locally so this browser can reveal it later — losing the
-      // salt means this vote can never be revealed and counted.
-      window.localStorage.setItem(
-        saltStorageKey(caseId, juror),
+      // Persisted in localStorage + sessionStorage backup so this browser can reveal it later
+      saveStoredSalt(
+        caseId,
+        juror,
         JSON.stringify({ vote: choice, salt: Array.from(salt) }),
       );
       const commitHash = await computeArbitrationCommitHash(choice, salt);
@@ -169,7 +183,7 @@ export default function ArbitrationJurorsPage() {
   async function handleReveal(caseId: number) {
     if (!wallet.address) return;
     const juror = parseStellarAddress(wallet.address);
-    const stored = window.localStorage.getItem(saltStorageKey(caseId, juror));
+    const stored = getStoredSalt(caseId, juror);
     if (!stored) {
       toast.error(
         "No locally-saved salt for this case/browser — the committed vote can't be revealed from here.",

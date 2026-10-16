@@ -94,6 +94,7 @@ function Slider({
         />
         <input
           type="range"
+          aria-label={label || 'Scenario slider'}
           min={min}
           max={max}
           step={step}
@@ -323,6 +324,7 @@ export function ScenarioModeler({
               </span>
               <input
                 type="number"
+                aria-label="Deposit Amount"
                 min={1_000}
                 max={1_000_000}
                 step={1_000}
@@ -334,7 +336,7 @@ export function ScenarioModeler({
               />
             </div>
             <Slider
-              label=""
+              label="Deposit Amount"
               min={1_000}
               max={1_000_000}
               step={1_000}
