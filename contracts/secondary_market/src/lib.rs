@@ -385,6 +385,26 @@ fn save_order(env: &Env, order: &Order) {
     extend_order_ttl(env);
 }
 
+/// How much of `owner`'s `owned_amount_or_bps` position in `invoice_id` /
+/// `kind` is still uncommitted to other open listings or resting ask orders.
+///
+/// #1516: this used to walk the owner's *entire lifetime* `LISTING_IDS_SELLER`
+/// and `ORDER_IDS_OWNER` index vectors, which are append-only (cancelled,
+/// filled and expired ids are never removed, and they back the public
+/// "open and closed" / "any status" views), so the cost of every ask-side
+/// `list_position` / `place_order` grew without bound for an active
+/// participant. Only commitments on *this* invoice and kind can matter, and
+/// both are already tracked by indexes with hard caps:
+///
+/// - open listings live in `LISTING_IDS_INV[invoice_id]`, capped at
+///   `MAX_LISTINGS_PER_INVOICE`;
+/// - open / partially-filled orders are exactly the orders resting in
+///   `BOOK_ASKS[book_key(invoice_id, kind)]` (an order is on the book iff it
+///   has `remaining > 0` and has not been cancelled or expired), capped at
+///   `MAX_ORDERS_PER_BOOK_SIDE`.
+///
+/// So the scan is bounded by those constants, independent of the owner's
+/// history. Results are identical to the old full-history scan.
 fn available_commitment_capacity(
     env: &Env,
     invoice_id: u64,
@@ -394,14 +414,12 @@ fn available_commitment_capacity(
 ) -> Option<u64> {
     let mut committed = 0u64;
 
-    let seller_map: Map<Address, Vec<u64>> = env
+    let invoice_map: Map<u64, Vec<u64>> = env
         .storage()
         .instance()
-        .get(&LISTING_IDS_SELLER)
+        .get(&LISTING_IDS_INV)
         .unwrap_or_else(|| Map::new(env));
-    let listing_ids = seller_map
-        .get(owner.clone())
-        .unwrap_or_else(|| Vec::new(env));
+    let listing_ids = invoice_map.get(invoice_id).unwrap_or_else(|| Vec::new(env));
     for listing_id in listing_ids.iter() {
         let Some(listing) = load_listing(env, listing_id) else {
             continue;
@@ -416,13 +434,13 @@ fn available_commitment_capacity(
         committed = committed.checked_add(listing.amount_or_bps)?;
     }
 
-    let owner_map: Map<Address, Vec<u64>> = env
+    let asks: Map<u64, Vec<u64>> = env
         .storage()
         .instance()
-        .get(&ORDER_IDS_OWNER)
+        .get(&BOOK_ASKS)
         .unwrap_or_else(|| Map::new(env));
-    let order_ids = owner_map
-        .get(owner.clone())
+    let order_ids = asks
+        .get(book_key(invoice_id, kind))
         .unwrap_or_else(|| Vec::new(env));
     for order_id in order_ids.iter() {
         let Some(order) = load_order(env, order_id) else {
