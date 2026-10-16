@@ -91,8 +91,9 @@ export async function runBackfill(
       // Brief delay to avoid rate limiting
       await new Promise((resolve) => setTimeout(resolve, 100));
     } catch (error) {
+      retryCount += 1;
       logger.error(
-        { err: error, currentLedger },
+        { err: error, currentLedger, retryCount, maxRetries },
         "[backfill] Error during backfill",
       );
       retryCount += 1;

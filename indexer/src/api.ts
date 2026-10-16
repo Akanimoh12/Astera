@@ -66,7 +66,7 @@ async function getAllEvents(
 export function startApiServer(
   pool: Pool,
   port: number,
-  state?: { lastProcessedLedger: string },
+  state?: { lastProcessedLedger: string; indexerActive?: boolean },
 ): void {
   const app = express();
   app.use(express.json());
@@ -105,7 +105,7 @@ export function startApiServer(
         timestamp: new Date().toISOString(),
         lastProcessedLedger,
         latestStoredLedger: latestStoredLedger ? Number(latestStoredLedger) : null,
-        indexerActive: true,
+        indexerActive: state?.indexerActive ?? false,
       });
     } catch (err: any) {
       res.status(500).json({
@@ -141,6 +141,11 @@ export function startApiServer(
         after_ledger,
         before_ledger,
       } = req.query;
+      const parsedLimit = parsePagination(limit, 50, 500);
+      const parsedOffset = parsePagination(offset, 0, Number.MAX_SAFE_INTEGER);
+      if (parsedLimit === null || parsedOffset === null) {
+        return res.status(400).json({ error: "limit must be an integer from 0 to 500 and offset must be a non-negative integer" });
+      }
 
       const events = await getEvents(pool, {
         contractId: contract_id as string | undefined,
@@ -166,6 +171,11 @@ export function startApiServer(
     try {
       const { actorAddress } = req.params;
       const { limit = "50", offset = "0" } = req.query;
+      const parsedLimit = parsePagination(limit, 50, 500);
+      const parsedOffset = parsePagination(offset, 0, Number.MAX_SAFE_INTEGER);
+      if (parsedLimit === null || parsedOffset === null) {
+        return res.status(400).json({ error: "invalid limit or offset" });
+      }
 
       const events = await getEvents(pool, {
         actorAddress,
@@ -184,6 +194,11 @@ export function startApiServer(
     try {
       const { contractId } = req.params;
       const { limit = "50", offset = "0" } = req.query;
+      const parsedLimit = parsePagination(limit, 50, 500);
+      const parsedOffset = parsePagination(offset, 0, Number.MAX_SAFE_INTEGER);
+      if (parsedLimit === null || parsedOffset === null) {
+        return res.status(400).json({ error: "invalid limit or offset" });
+      }
 
       const events = await getEvents(pool, {
         contractId,
@@ -202,6 +217,11 @@ export function startApiServer(
     try {
       const { eventType } = req.params;
       const { limit = "50", offset = "0" } = req.query;
+      const parsedLimit = parsePagination(limit, 50, 500);
+      const parsedOffset = parsePagination(offset, 0, Number.MAX_SAFE_INTEGER);
+      if (parsedLimit === null || parsedOffset === null) {
+        return res.status(400).json({ error: "invalid limit or offset" });
+      }
 
       const events = await getEvents(pool, {
         eventType,
@@ -478,10 +498,8 @@ export function startApiServer(
 
   app.get("/secondary-market/listings/open", async (_req, res) => {
     try {
-      const events = await getEvents(pool, {
+      const events = await getAllEvents(pool, {
         contractType: "pool",
-        limit: 2000,
-        offset: 0,
       });
 
       const opened = new Set<string>();
@@ -515,11 +533,9 @@ export function startApiServer(
       }
       const addressLower = address.toLowerCase();
 
-      const events = await getEvents(pool, {
+      const events = await getAllEvents(pool, {
         contractType: "pool",
         eventType: "lst_open",
-        limit: 2000,
-        offset: 0,
       });
 
       const listingIds = new Set<string>();
@@ -550,10 +566,8 @@ export function startApiServer(
 
   app.get("/secondary-market/orders/open", async (_req, res) => {
     try {
-      const events = await getEvents(pool, {
+      const events = await getAllEvents(pool, {
         contractType: "pool",
-        limit: 2000,
-        offset: 0,
       });
 
       const opened = new Set<string>();
@@ -834,11 +848,9 @@ export function startApiServer(
           .json({ error: "from/to must be unix timestamps in seconds" });
       }
 
-      const events = await getEvents(pool, {
+      const events = await getAllEvents(pool, {
         contractType: "pool",
         eventType: "rate_snap",
-        limit: 10_000,
-        offset: 0,
       });
 
       const samples = events
@@ -870,6 +882,8 @@ export function startApiServer(
   app.get("/compliance/flagged", async (req, res) => {
     try {
       const { limit = "100" } = req.query;
+      const parsedLimit = parsePagination(limit, 100, 500);
+      if (parsedLimit === null) return res.status(400).json({ error: "invalid limit" });
       const events = await getEvents(pool, {
         contractType: "compliance",
         eventType: "screened",
@@ -914,6 +928,8 @@ export function startApiServer(
     try {
       const { address } = req.params;
       const { limit = "100" } = req.query;
+      const parsedLimit = parsePagination(limit, 100, 500);
+      if (parsedLimit === null) return res.status(400).json({ error: "invalid limit" });
       const events = await getEvents(pool, {
         contractType: "compliance",
         limit: parseBoundedInteger(limit, 100, MAX_PAGE_SIZE, "limit"),
