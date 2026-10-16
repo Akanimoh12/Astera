@@ -616,6 +616,9 @@ impl ReferralContract {
         env.storage()
             .persistent()
             .set(&reward_key, &(current_pending - actual_claim_amount));
+        env.storage()
+            .persistent()
+            .extend_ttl(&reward_key, REGISTRY_TTL, REGISTRY_TTL);
         bump_instance(&env);
 
         token_client.transfer(
