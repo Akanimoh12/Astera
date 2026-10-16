@@ -19,6 +19,9 @@ pub fn fund_invoice_from_tranches(
     invoice_id: u64,
     total_amount: i128,
 ) -> TrancheFundingSplit {
+    if total_amount <= 0 {
+        panic_with_error!(env, TrancheError::InvalidAmount);
+    }
     if env
         .storage()
         .instance()
