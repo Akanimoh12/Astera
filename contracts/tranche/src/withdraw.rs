@@ -64,6 +64,17 @@ pub fn withdraw(env: &Env, investor: Address, token: Address, tranche: TrancheCl
         }
     }
 
+    // Realize the portion of the investor's cost basis represented by the
+    // withdrawn shares. This keeps the per-investor P&L fields useful instead
+    // of leaving them at their default zero values forever.
+    let cost_basis = position.deposited * shares_to_burn / position.shares;
+    let pnl = amount - cost_basis;
+    if pnl >= 0 {
+        position.earned += pnl;
+    } else {
+        position.losses += -pnl;
+    }
+
     position.shares -= shares_to_burn;
     position.deposited -= amount;
 
