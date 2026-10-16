@@ -9,8 +9,7 @@ set -euo pipefail
 # resulting module to frontend/src/generated/<contract>.ts.
 #
 # Usage: ./scripts/gen-bindings.sh [contract...]
-#   contract:  one or more of: invoice pool credit_score secondary_market
-#              (default: all of them)
+#   contract:  one or more contract names (default: all 14 contracts)
 #
 # Examples:
 #   ./scripts/gen-bindings.sh                     # regenerate all bindings
@@ -21,18 +20,36 @@ set -euo pipefail
 #   - Rust toolchain with the wasm32-unknown-unknown target
 #   - stellar-cli (pinned in CI; install with: cargo install stellar-cli --locked)
 #
-# The generated files are committed to the repository. CI regenerates them and
-# runs `git diff --exit-code` to ensure they stay in sync with the contract
-# source. See CONTRIBUTING.md ("Regenerating contract bindings") for details.
+# #1563: DEFAULT_CONTRACTS now covers all 14 contracts so running the script
+# with no arguments regenerates bindings for the full contract suite.
+#
+# CI regenerates bindings and runs `git diff --exit-code` to keep them in sync
+# with the contract source. See .github/workflows/ci.yml (bindings-check job)
+# and CONTRIBUTING.md ("Regenerating contract bindings") for details.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 WASM_DIR="target/wasm32-unknown-unknown/release"
 OUTPUT_DIR="frontend/src/generated"
-# #1044: secondary_market's MarketError enum is well under the 50-case
-# contract-spec limit that blocks pool below, so it's included by default.
-DEFAULT_CONTRACTS=(invoice pool credit_score secondary_market)
+
+# #1563: all 14 contracts — previously only 4 were listed here.
+DEFAULT_CONTRACTS=(
+  invoice
+  pool
+  credit_score
+  share
+  secondary_market
+  tranche
+  auction
+  governance
+  access_control
+  compliance
+  insurance
+  arbitration
+  oracle_registry
+  referral
+)
 
 # Contracts to process: CLI args if given, otherwise the full default set.
 if [ "$#" -gt 0 ]; then
