@@ -15,6 +15,11 @@ export type ContractType =
   | 'compliance'
   | 'tranche'
   | 'insurance'
+  | 'access_control'
+  | 'arbitration'
+  | 'governance'
+  | 'referral'
+  | 'share'
   | 'unknown';
 
 export interface IndexedEvent {
@@ -51,6 +56,11 @@ const TRANCHE_CONTRACT_ID = (process.env.TRANCHE_CONTRACT_ID || '').trim();
 const AUCTION_CONTRACT_ID = (process.env.AUCTION_CONTRACT_ID || '').trim();
 // #1055: default-insurance reserve — coverage purchase, claims, reserve health
 const INSURANCE_CONTRACT_ID = (process.env.INSURANCE_CONTRACT_ID || '').trim();
+const ACCESS_CONTROL_CONTRACT_ID = (process.env.ACCESS_CONTROL_CONTRACT_ID || '').trim();
+const ARBITRATION_CONTRACT_ID = (process.env.ARBITRATION_CONTRACT_ID || '').trim();
+const GOVERNANCE_CONTRACT_ID = (process.env.GOVERNANCE_CONTRACT_ID || '').trim();
+const REFERRAL_CONTRACT_ID = (process.env.REFERRAL_CONTRACT_ID || '').trim();
+const SHARE_CONTRACT_ID = (process.env.SHARE_CONTRACT_ID || '').trim();
 
 // #861: oracle_registry contract emits these event subtypes under the
 // "ORACLE" topic (see `EVT` in contracts/oracle_registry/src/lib.rs).
@@ -185,6 +195,11 @@ function classifyContract(contractId: string, contractType: string, eventType: s
   if (INSURANCE_CONTRACT_ID && contractId === INSURANCE_CONTRACT_ID) {
     return 'insurance';
   }
+  if (ACCESS_CONTROL_CONTRACT_ID && contractId === ACCESS_CONTROL_CONTRACT_ID) return 'access_control';
+  if (ARBITRATION_CONTRACT_ID && contractId === ARBITRATION_CONTRACT_ID) return 'arbitration';
+  if (GOVERNANCE_CONTRACT_ID && contractId === GOVERNANCE_CONTRACT_ID) return 'governance';
+  if (REFERRAL_CONTRACT_ID && contractId === REFERRAL_CONTRACT_ID) return 'referral';
+  if (SHARE_CONTRACT_ID && contractId === SHARE_CONTRACT_ID) return 'share';
   // Fallback: infer from topic. credit_score events publish under "CREDIT",
   // oracle_registry events publish under "ORACLE" (#861),
   // compliance events publish under "COMPLY" (#867),
@@ -205,6 +220,11 @@ function classifyContract(contractId: string, contractType: string, eventType: s
   if (contractType === 'INSURNCE' || INSURANCE_EVENT_TYPES.has(eventType)) {
     return 'insurance';
   }
+  if (contractType.toLowerCase() === 'access_control') return 'access_control';
+  if (contractType.toLowerCase() === 'arbitration') return 'arbitration';
+  if (contractType.toLowerCase() === 'governance') return 'governance';
+  if (contractType.toLowerCase() === 'referral') return 'referral';
+  if (contractType.toLowerCase() === 'share') return 'share';
   if (contractType === 'invoice') return 'invoice';
   if (contractType === 'pool') return 'pool';
   if (SECONDARY_MARKET_EVENT_TYPES.has(eventType)) return 'pool';

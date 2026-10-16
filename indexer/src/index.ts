@@ -52,6 +52,13 @@ const SECONDARY_MARKET_CONTRACT_ID = (
 // #1055: also watch the insurance contract, if deployed, so
 // covered/claimed/reserve events are queryable off-chain.
 const INSURANCE_CONTRACT_ID = (process.env.INSURANCE_CONTRACT_ID || "").trim();
+const ADDITIONAL_CONTRACT_IDS = [
+  process.env.ACCESS_CONTROL_CONTRACT_ID,
+  process.env.ARBITRATION_CONTRACT_ID,
+  process.env.GOVERNANCE_CONTRACT_ID,
+  process.env.REFERRAL_CONTRACT_ID,
+  process.env.SHARE_CONTRACT_ID,
+].map((id) => (id || "").trim());
 const CONTRACT_IDS = Array.from(
   new Set(
     [
@@ -60,6 +67,7 @@ const CONTRACT_IDS = Array.from(
       ORACLE_REGISTRY_CONTRACT_ID,
       SECONDARY_MARKET_CONTRACT_ID,
       INSURANCE_CONTRACT_ID,
+      ...ADDITIONAL_CONTRACT_IDS,
     ].filter(Boolean),
   ),
 );
@@ -133,7 +141,10 @@ async function main() {
   }
 
   // #973: Store indexer state for health endpoint
-  const state = { lastProcessedLedger: (await getLatestLedger(pool)) || "0" };
+  const state = {
+    lastProcessedLedger: (await getLatestLedger(pool)) || "0",
+    indexerActive: true,
+  };
 
   // Start API server with state reference
   startApiServer(pool, API_PORT, state);
@@ -148,7 +159,7 @@ async function main() {
   });
 }
 
-async function pollLoop(pool: Pool, state: { lastProcessedLedger: string }) {
+async function pollLoop(pool: Pool, state: { lastProcessedLedger: string; indexerActive?: boolean }) {
   let cursor = await getLatestLedger(pool);
 
   // #976: Apply lookback window on startup to catch any events missed during downtime
@@ -270,10 +281,12 @@ async function pollLoop(pool: Pool, state: { lastProcessedLedger: string }) {
       }
 
       consecutiveFailures = 0;
+      state.indexerActive = true;
 
       await new Promise((resolve) => setTimeout(resolve, POLLING_INTERVAL_MS));
     } catch (error) {
       consecutiveFailures++;
+      if (consecutiveFailures >= ALERT_THRESHOLD) state.indexerActive = false;
       pollErrorsTotal.inc();
 
       const delay = Math.min(
