@@ -18,6 +18,30 @@ import type { IndexedEvent } from "./parser";
 import { logger } from "./logger";
 import { register } from "./metrics";
 
+const MAX_REPLAY_EVENTS = Math.max(
+  1_000,
+  Number.parseInt(process.env.MAX_REPLAY_EVENTS ?? "100000", 10) || 100_000,
+);
+const MAX_PAGE_SIZE = 500;
+const MAX_OFFSET = 1_000_000;
+
+function parseBoundedInteger(
+  value: unknown,
+  fallback: number,
+  maximum: number,
+  name: string,
+): number {
+  if (value === undefined) return fallback;
+  if (typeof value !== "string" || !/^\d+$/.test(value)) {
+    throw new RangeError(`${name} must be a non-negative integer`);
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed > maximum) {
+    throw new RangeError(`${name} must be at most ${maximum}`);
+  }
+  return parsed;
+}
+
 async function getAllEvents(
   pool: Pool,
   options: GetEventsOptions,
@@ -29,6 +53,11 @@ async function getAllEvents(
   while (true) {
     const page = await getEvents(pool, { ...options, limit: pageSize, offset });
     events.push(...page);
+    if (events.length > MAX_REPLAY_EVENTS) {
+      throw new RangeError(
+        `event replay exceeds the ${MAX_REPLAY_EVENTS} event safety limit`,
+      );
+    }
     if (page.length < pageSize) return events;
     offset += page.length;
   }
@@ -118,8 +147,8 @@ export function startApiServer(
         contractType: contract_type as string | undefined,
         eventType: event_type as string | undefined,
         actorAddress: actor_address as string | undefined,
-        limit: parseInt(limit as string, 10),
-        offset: parseInt(offset as string, 10),
+        limit: parseBoundedInteger(limit, 50, MAX_PAGE_SIZE, "limit"),
+        offset: parseBoundedInteger(offset, 0, MAX_OFFSET, "offset"),
         afterLedger:
           typeof after_ledger === "string" ? parseInt(after_ledger, 10) : undefined,
         beforeLedger:
@@ -128,7 +157,7 @@ export function startApiServer(
 
       res.json({ events, count: events.length });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(err instanceof RangeError ? 400 : 500).json({ error: err.message });
     }
   });
 
@@ -140,13 +169,13 @@ export function startApiServer(
 
       const events = await getEvents(pool, {
         actorAddress,
-        limit: parseInt(limit as string, 10),
-        offset: parseInt(offset as string, 10),
+        limit: parseBoundedInteger(limit, 50, MAX_PAGE_SIZE, "limit"),
+        offset: parseBoundedInteger(offset, 0, MAX_OFFSET, "offset"),
       });
 
       res.json({ actorAddress, events, count: events.length });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(err instanceof RangeError ? 400 : 500).json({ error: err.message });
     }
   });
 
@@ -158,13 +187,13 @@ export function startApiServer(
 
       const events = await getEvents(pool, {
         contractId,
-        limit: parseInt(limit as string, 10),
-        offset: parseInt(offset as string, 10),
+        limit: parseBoundedInteger(limit, 50, MAX_PAGE_SIZE, "limit"),
+        offset: parseBoundedInteger(offset, 0, MAX_OFFSET, "offset"),
       });
 
       res.json({ contractId, events, count: events.length });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(err instanceof RangeError ? 400 : 500).json({ error: err.message });
     }
   });
 
@@ -176,13 +205,13 @@ export function startApiServer(
 
       const events = await getEvents(pool, {
         eventType,
-        limit: parseInt(limit as string, 10),
-        offset: parseInt(offset as string, 10),
+        limit: parseBoundedInteger(limit, 50, MAX_PAGE_SIZE, "limit"),
+        offset: parseBoundedInteger(offset, 0, MAX_OFFSET, "offset"),
       });
 
       res.json({ eventType, events, count: events.length });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(err instanceof RangeError ? 400 : 500).json({ error: err.message });
     }
   });
 
@@ -844,7 +873,7 @@ export function startApiServer(
       const events = await getEvents(pool, {
         contractType: "compliance",
         eventType: "screened",
-        limit: parseInt(limit as string, 10),
+        limit: parseBoundedInteger(limit, 100, MAX_PAGE_SIZE, "limit"),
         offset: 0,
       });
       const latest = new Map<
@@ -876,7 +905,7 @@ export function startApiServer(
       }
       res.json({ flagged: Array.from(latest.values()) });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(err instanceof RangeError ? 400 : 500).json({ error: err.message });
     }
   });
 
@@ -887,7 +916,7 @@ export function startApiServer(
       const { limit = "100" } = req.query;
       const events = await getEvents(pool, {
         contractType: "compliance",
-        limit: parseInt(limit as string, 10),
+        limit: parseBoundedInteger(limit, 100, MAX_PAGE_SIZE, "limit"),
         offset: 0,
       });
       const history = events
@@ -905,7 +934,7 @@ export function startApiServer(
         }));
       res.json({ address, history });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(err instanceof RangeError ? 400 : 500).json({ error: err.message });
     }
   });
 
