@@ -143,19 +143,27 @@ contracts instead, since that's the namespace they're published under.
 
 ## Share (`share` namespace)
 
-The fungible share-token contract backing pool deposits.
+The fungible share-token contract backing pool deposits. All events are
+published under the contract's own `share` short-symbol topic — there is no
+SEP-41 delegation; every lifecycle event uses `(EVT, symbol_short!("<action>"))`.
 
-| Action      | Payload                          |
-| ----------- | ------------------------------------- |
-| `paused`    | `admin`                                |
-| `unpause`   | `admin`                                |
-| `incrallow` | `(owner, spender, new_allowance)`      |
-| `decrallow` | `(owner, spender, new_allowance)`      |
-| `xfer_from` | `(spender, from, to, amount)`          |
+| Action      | Payload                                | Description |
+| ----------- | -------------------------------------- | ----------- |
+| `init`      | `(name, symbol, decimals)`             | Contract initialised |
+| `mint`      | `(to, amount, new_total_supply)`       | Shares minted to an address |
+| `burn`      | `(from, amount, new_total_supply)`     | Shares burned from an address |
+| `transfer`  | `(from, to, amount)`                   | Shares transferred between addresses |
+| `approve`   | `(owner, spender, amount)`             | Spender allowance set |
+| `xfer_from` | `(spender, from, to, amount)`          | Transfer via approved spender |
+| `paused`    | `admin`                                | Contract paused |
+| `unpaused`  | `admin`                                | Contract unpaused |
+| `incrallow` | `(owner, spender, new_allowance)`      | Allowance incremented |
+| `decrallow` | `(owner, spender, new_allowance)`      | Allowance decremented |
 
-Mint/transfer/burn use the standard SEP-41 token events, not this contract's own
-`EVT` namespace — only the extensions above (pause and allowance changes) are
-Astera-specific.
+```rust
+// All events follow this pattern — example for mint:
+env.events().publish((EVT, symbol_short!("mint")), (to, amount, new_total));
+```
 
 ## Arbitration (`ARBTRTN` namespace)
 
