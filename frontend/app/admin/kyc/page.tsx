@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { useStore } from '@/lib/store';
 import { Skeleton } from '@/components/Skeleton';
 import { parseStellarAddress } from '@/lib/types';
+import { NETWORK } from '@/lib/stellar';
 import {
   getKycRequired,
   getInvestorKyc,
@@ -84,7 +85,7 @@ export default function AdminKycPage() {
   async function signAndSubmit(xdr: string) {
     const freighter = await import('@stellar/freighter-api');
     const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-      networkPassphrase: 'Test SDF Network ; September 2015',
+      networkPassphrase: NETWORK,
       address: wallet.address!,
     });
     if (signError) throw new Error(signError.message || 'Signing rejected.');

@@ -12,7 +12,7 @@ import {
   getClaimHistory,
   submitTx,
 } from '@/lib/contracts';
-import { formatUSDC } from '@/lib/stellar';
+import { NETWORK, formatUSDC } from '@/lib/stellar';
 import type { FundedInvoice } from '@/lib/types';
 
 function tenorDaysFromDueDate(dueDate: number): number {
@@ -29,10 +29,11 @@ export default function InsuranceCoverageBadge({
   const [purchaseLoading, setPurchaseLoading] = useState(false);
   const [claimLoading, setClaimLoading] = useState(false);
 
-  const { data: coverage, error: coverageError, mutate: mutateCoverage } = useSWR(
-    ['insurance-coverage', fundedInvoice.invoiceId],
-    ([, id]) => getCoverageRecord(id),
-  );
+  const {
+    data: coverage,
+    error: coverageError,
+    mutate: mutateCoverage,
+  } = useSWR(['insurance-coverage', fundedInvoice.invoiceId], ([, id]) => getCoverageRecord(id));
   const { data: premiumEstimate } = useSWR(
     !coverage ? ['insurance-premium-estimate', fundedInvoice.invoiceId, fundedInvoice.sme] : null,
     () =>
@@ -65,7 +66,7 @@ export default function InsuranceCoverageBadge({
       );
       const freighter = await import('@stellar/freighter-api');
       const { signedTxXdr, error: signError } = await freighter.signTransaction(txXdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015',
+        networkPassphrase: NETWORK,
         address: wallet.address,
       });
       if (signError) throw new Error(signError.message || 'Signing rejected.');
@@ -89,7 +90,7 @@ export default function InsuranceCoverageBadge({
       const txXdr = await buildFileClaimTx(wallet.address, fundedInvoice.invoiceId);
       const freighter = await import('@stellar/freighter-api');
       const { signedTxXdr, error: signError } = await freighter.signTransaction(txXdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015',
+        networkPassphrase: NETWORK,
         address: wallet.address,
       });
       if (signError) throw new Error(signError.message || 'Signing rejected.');

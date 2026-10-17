@@ -12,7 +12,7 @@ import {
   buildSetExchangeRateTx,
   submitTx,
 } from '@/lib/contracts';
-import { stablecoinLabel } from '@/lib/stellar';
+import { NETWORK, stablecoinLabel } from '@/lib/stellar';
 
 export default function AdminExchangeRatesPage() {
   const t = useTranslations('Admin.exchangeRates');
@@ -56,7 +56,7 @@ export default function AdminExchangeRatesPage() {
   async function signAndSubmit(xdr: string) {
     const freighter = await import('@stellar/freighter-api');
     const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-      networkPassphrase: 'Test SDF Network ; September 2015',
+      networkPassphrase: NETWORK,
       address: wallet.address!,
     });
     if (signError) throw new Error(signError.message || 'Signing rejected.');

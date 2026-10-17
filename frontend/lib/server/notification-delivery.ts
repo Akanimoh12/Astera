@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from 'crypto';
+import { isSafeWebhookUrl } from '@/lib/server/webhook-url';
 
 export type DeliveryEvent =
   | 'INVOICE_FUNDED'
@@ -72,6 +73,8 @@ async function sendEmail(payload: NotificationPayload): Promise<void> {
 }
 
 async function sendWebhook(url: string, payload: NotificationPayload): Promise<void> {
+  if (!(await isSafeWebhookUrl(url))) throw new Error('Invalid webhook URL');
+
   const body = JSON.stringify({
     id: randomUUID(),
     ...payload,
