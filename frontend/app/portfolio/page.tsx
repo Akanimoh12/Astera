@@ -20,7 +20,7 @@ import {
   submitTx,
   getTrancheInvestorPosition,
 } from '@/lib/contracts';
-import { formatUSDC, stablecoinLabel, toStroops } from '@/lib/stellar';
+import { NETWORK, formatUSDC, stablecoinLabel, toStroops } from '@/lib/stellar';
 import type { PoolTokenTotals, WaitEstimate, LiquidityForecastPoint } from '@/lib/types';
 
 interface PortfolioSnapshot {
@@ -303,7 +303,7 @@ export default function PortfolioPage() {
     const xdr = await xdrPromise;
     const freighter = await import('@stellar/freighter-api');
     const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-      networkPassphrase: 'Test SDF Network ; September 2015',
+      networkPassphrase: NETWORK,
       address: wallet.address!,
     });
     if (signError) throw new Error(signError.message);

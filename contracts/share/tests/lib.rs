@@ -535,6 +535,32 @@ fn test_total_supply_ttl_tracks_balance_ttl() {
     });
 }
 
+/// The ring-buffer head is part of the checkpoint state and must never archive
+/// independently of the vector whose logical ordering it defines.
+#[test]
+fn test_checkpoint_head_ttl_tracks_checkpoints_ttl() {
+    use soroban_sdk::testutils::storage::Persistent as _;
+
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, contract_id) = setup_with_contract_id(&env);
+    let holder = Address::generate(&env);
+
+    client.mint(&holder, &1_000i128);
+
+    env.as_contract(&contract_id, || {
+        let checkpoints_ttl = env
+            .storage()
+            .persistent()
+            .get_ttl(&share::DataKey::Checkpoints(holder.clone()));
+        let head_ttl = env
+            .storage()
+            .persistent()
+            .get_ttl(&share::DataKey::CheckpointsHead(holder.clone()));
+        assert_eq!(checkpoints_ttl, head_ttl);
+    });
+}
+
 /// A deployment that predates the move still holds the supply in instance
 /// storage. Reads must keep working and the first write must migrate it, so
 /// the value can never be silently read back as zero.

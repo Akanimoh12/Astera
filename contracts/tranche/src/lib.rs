@@ -10,7 +10,7 @@ pub mod state;
 pub mod withdraw;
 
 use errors::TrancheError;
-use events::{CONFIG, EVT, PAUSED};
+use events::{CONFIG, EVT, OPENED, PAUSED};
 use state::{DataKey, TrancheAccounting, TrancheClass, TrancheConfig, TranchePool};
 
 use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env};
@@ -336,7 +336,7 @@ impl TrancheContract {
         Self::store_enabled_pool(&env, &token, &pool);
 
         env.events().publish(
-            (EVT, CONFIG),
+            (EVT, OPENED),
             (
                 token,
                 config.senior_target_yield_bps,

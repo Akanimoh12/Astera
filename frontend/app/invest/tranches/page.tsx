@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { TrancheClass, TranchePool } from '@/../packages/sdk/src/generated/tranche';
 import { getTranchePool, buildTrancheDepositTx } from '@/lib/contracts';
-import { submitTx, toStroops } from '@/lib/stellar';
+import { NETWORK, submitTx, toStroops } from '@/lib/stellar';
 import { useStore } from '@/lib/store';
 import toast from 'react-hot-toast';
 
@@ -229,7 +229,7 @@ export default function TranchesPage() {
       );
       const freighter = await import('@stellar/freighter-api');
       const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015',
+        networkPassphrase: NETWORK,
         address: wallet.address,
       });
       if (signError) throw new Error(signError.message);

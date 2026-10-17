@@ -12,6 +12,7 @@ import { useStore } from '@/lib/store';
 import { Skeleton } from '@/components/Skeleton';
 import { parseStellarAddress } from '@/lib/types';
 import type { JurorInfo, DisputeCase, JurorVoteStatus } from '@/lib/types';
+import { NETWORK } from '@/lib/stellar';
 import {
   getJurorInfo,
   getJurorCases,
@@ -47,8 +48,12 @@ function getStoredSalt(caseId: number, juror: string): string | null {
 
 function saveStoredSalt(caseId: number, juror: string, data: string): void {
   if (typeof window === 'undefined') return;
-  try { window.localStorage.setItem(saltStorageKey(caseId, juror), data); } catch {}
-  try { window.sessionStorage.setItem(saltStorageKey(caseId, juror), data); } catch {}
+  try {
+    window.localStorage.setItem(saltStorageKey(caseId, juror), data);
+  } catch {}
+  try {
+    window.sessionStorage.setItem(saltStorageKey(caseId, juror), data);
+  } catch {}
 }
 
 function formatStake(amount: bigint): string {
@@ -102,7 +107,7 @@ export default function ArbitrationJurorsPage() {
   async function signAndSubmit(xdr: string) {
     const freighter = await import('@stellar/freighter-api');
     const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-      networkPassphrase: 'Test SDF Network ; September 2015',
+      networkPassphrase: NETWORK,
       address: wallet.address!,
     });
     if (signError) throw new Error(signError.message || 'Signing rejected.');
@@ -162,11 +167,7 @@ export default function ArbitrationJurorsPage() {
       const juror = parseStellarAddress(wallet.address);
       const salt = generateArbitrationSalt();
       // Persisted in localStorage + sessionStorage backup so this browser can reveal it later
-      saveStoredSalt(
-        caseId,
-        juror,
-        JSON.stringify({ vote: choice, salt: Array.from(salt) }),
-      );
+      saveStoredSalt(caseId, juror, JSON.stringify({ vote: choice, salt: Array.from(salt) }));
       const commitHash = await computeArbitrationCommitHash(choice, salt);
       const xdr = await buildCommitVoteTx({ juror, caseId, commitHash });
       await signAndSubmit(xdr);
@@ -219,9 +220,7 @@ export default function ArbitrationJurorsPage() {
     return (
       <div className="max-w-4xl">
         <h1 className="text-3xl font-bold mb-2">{t('title')}</h1>
-        <p className="text-brand-muted text-sm">
-          {t('notDeployed')}
-        </p>
+        <p className="text-brand-muted text-sm">{t('notDeployed')}</p>
       </div>
     );
   }
@@ -232,9 +231,7 @@ export default function ArbitrationJurorsPage() {
     <div className="max-w-5xl space-y-8">
       <div>
         <h1 className="text-3xl font-bold mb-2">{t('title')}</h1>
-        <p className="text-brand-muted text-sm">
-          {t('subtitle')}
-        </p>
+        <p className="text-brand-muted text-sm">{t('subtitle')}</p>
       </div>
 
       <div className="p-6 bg-brand-card border border-brand-border rounded-2xl space-y-4">
@@ -326,8 +323,12 @@ export default function ArbitrationJurorsPage() {
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-brand-muted">{t('cases.caseNumber', { id: c.id })}</p>
-                      <p className="font-semibold">{t('cases.invoiceNumber', { id: c.invoiceId })}</p>
+                      <p className="text-sm text-brand-muted">
+                        {t('cases.caseNumber', { id: c.id })}
+                      </p>
+                      <p className="font-semibold">
+                        {t('cases.invoiceNumber', { id: c.invoiceId })}
+                      </p>
                     </div>
                     <span
                       className={`px-3 py-1 rounded-full text-xs font-semibold border ${STATUS_STYLES[c.status]}`}
@@ -382,9 +383,7 @@ export default function ArbitrationJurorsPage() {
                           {t('cases.revealVote')}
                         </button>
                       ) : (
-                        <p className="text-sm text-brand-muted">
-                          {t('cases.awaitingReveal')}
-                        </p>
+                        <p className="text-sm text-brand-muted">{t('cases.awaitingReveal')}</p>
                       )}
                     </div>
                   )}
