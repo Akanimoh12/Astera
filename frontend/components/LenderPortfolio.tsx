@@ -10,7 +10,7 @@ import {
   getPoolConfig,
   submitTx,
 } from '@/lib/contracts';
-import { formatUSDC, stablecoinLabel } from '@/lib/stellar';
+import { NETWORK, formatUSDC, stablecoinLabel } from '@/lib/stellar';
 
 type Row = { token: string; deposited: bigint; value: bigint; accrued: bigint };
 
@@ -46,7 +46,7 @@ export default function LenderPortfolio() {
       const xdr = await buildClaimYieldTx(wallet.address, token);
       const freighter = await import('@stellar/freighter-api');
       const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015',
+        networkPassphrase: NETWORK,
         address: wallet.address,
       });
       if (signError) throw new Error(signError.message);
@@ -95,9 +95,7 @@ export default function LenderPortfolio() {
             <article key={row.token} className="rounded-xl border border-brand-border p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="font-medium">
-                    {stablecoinLabel(row.token)}
-                  </p>
+                  <p className="font-medium">{stablecoinLabel(row.token)}</p>
                   <p className="text-sm text-brand-muted">
                     Deposited {formatUSDC(row.deposited)} · Current value {formatUSDC(row.value)}
                   </p>

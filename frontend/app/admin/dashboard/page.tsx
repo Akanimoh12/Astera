@@ -28,7 +28,7 @@ import {
   buildUnpauseProtocolTx,
   submitTx,
 } from '@/lib/contracts';
-import { formatUSDC } from '@/lib/stellar';
+import { NETWORK, formatUSDC } from '@/lib/stellar';
 import type { Invoice } from '@/lib/types';
 
 const REFRESH_INTERVAL_MS = 60_000;
@@ -95,7 +95,7 @@ export default function AdminDashboardPage() {
 
       const freighter = await import('@stellar/freighter-api');
       const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015',
+        networkPassphrase: NETWORK,
         address: wallet.address,
       });
 

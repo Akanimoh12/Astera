@@ -13,7 +13,7 @@ import {
   buildOpenCoFundingTx,
   submitTx,
 } from '@/lib/contracts';
-import { formatUSDC, truncateAddress, formatDate } from '@/lib/stellar';
+import { NETWORK, formatUSDC, truncateAddress, formatDate } from '@/lib/stellar';
 import type { Invoice } from '@/lib/types';
 
 /** Number of invoices to scan per batch */
@@ -195,7 +195,7 @@ export default function AdminInvoicesPage() {
 
           const freighter = await import('@stellar/freighter-api');
           const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-            networkPassphrase: 'Test SDF Network ; September 2015',
+            networkPassphrase: NETWORK,
             address: wallet.address,
           });
 
@@ -243,7 +243,7 @@ export default function AdminInvoicesPage() {
 
       const freighter = await import('@stellar/freighter-api');
       const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015',
+        networkPassphrase: NETWORK,
         address: wallet.address,
       });
 

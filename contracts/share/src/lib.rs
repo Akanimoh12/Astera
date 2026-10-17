@@ -100,7 +100,13 @@ fn write_checkpoint(env: &Env, who: &Address, new_balance: i128) {
         if checkpoints.get(newest_index).unwrap().0 == now {
             checkpoints.set(newest_index, (now, new_balance));
             env.storage().persistent().set(&key, &checkpoints);
+            env.storage().persistent().set(&head_key, &head);
             env.storage().persistent().extend_ttl(&key, BALANCE_LIFETIME_THRESHOLD, BALANCE_BUMP_AMOUNT);
+            env.storage().persistent().extend_ttl(
+                &head_key,
+                BALANCE_LIFETIME_THRESHOLD,
+                BALANCE_BUMP_AMOUNT,
+            );
             return;
         }
     }
@@ -111,10 +117,15 @@ fn write_checkpoint(env: &Env, who: &Address, new_balance: i128) {
     } else {
         checkpoints.set(head as usize, (now, new_balance));
         head = (head + 1) % MAX_CHECKPOINTS;
-        env.storage().persistent().set(&head_key, &head);
     }
     env.storage().persistent().set(&key, &checkpoints);
+    env.storage().persistent().set(&head_key, &head);
     env.storage().persistent().extend_ttl(&key, BALANCE_LIFETIME_THRESHOLD, BALANCE_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(
+        &head_key,
+        BALANCE_LIFETIME_THRESHOLD,
+        BALANCE_BUMP_AMOUNT,
+    );
 }
 
 fn require_not_paused(env: &Env) {
