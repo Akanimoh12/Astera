@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import toast from 'react-hot-toast';
 import { useStore } from '@/lib/store';
-import { GOVERNANCE_CONTRACT_ID, formatDate, truncateAddress } from '@/lib/stellar';
+import { NETWORK, GOVERNANCE_CONTRACT_ID, formatDate, truncateAddress } from '@/lib/stellar';
 import {
   getGovernanceConfig,
   getShareBalance,
@@ -124,7 +124,7 @@ export default function GovernancePage() {
       const xdr = await buildTx();
       const freighter = await import('@stellar/freighter-api');
       const { signedTxXdr, error } = await freighter.signTransaction(xdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015',
+        networkPassphrase: NETWORK,
         address: wallet.address,
       });
       if (error) throw new Error(error.message);

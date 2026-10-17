@@ -7,7 +7,7 @@ import { useStore } from '@/lib/store';
 import { Skeleton } from '@/components/Skeleton';
 import { RateCurveChart } from '@/components/analytics';
 import { validateRateModelConfig } from '@/lib/rate-model';
-import { stablecoinLabel } from '@/lib/stellar';
+import { NETWORK, stablecoinLabel } from '@/lib/stellar';
 import type { RateModelConfig } from '@/lib/types';
 import {
   getPoolConfig,
@@ -117,7 +117,7 @@ export default function AdminYieldPage() {
   async function signAndSubmit(xdr: string) {
     const freighter = await import('@stellar/freighter-api');
     const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-      networkPassphrase: 'Test SDF Network ; September 2015',
+      networkPassphrase: NETWORK,
       address: wallet.address!,
     });
 

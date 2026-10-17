@@ -7,7 +7,7 @@ import { useStore } from '@/lib/store';
 import { TableRowSkeleton } from '@/components/Skeleton';
 import ConfirmActionModal from '@/components/ConfirmActionModal';
 import { getInvoice, getInvoiceCount, buildMarkDefaultedTx, submitTx } from '@/lib/contracts';
-import { formatUSDC, truncateAddress, formatDate } from '@/lib/stellar';
+import { NETWORK, formatUSDC, truncateAddress, formatDate } from '@/lib/stellar';
 import type { Invoice } from '@/lib/types';
 
 export default function AdminDefaultsPage() {
@@ -64,7 +64,7 @@ export default function AdminDefaultsPage() {
 
       const freighter = await import('@stellar/freighter-api');
       const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015',
+        networkPassphrase: NETWORK,
         address: wallet.address,
       });
 

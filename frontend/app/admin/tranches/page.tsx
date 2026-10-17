@@ -4,7 +4,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { TrancheConfig } from '@/../packages/sdk/src/generated/tranche';
 import { buildSetTrancheConfigTx } from '@/lib/contracts';
-import { submitTx } from '@/lib/stellar';
+import { NETWORK, submitTx } from '@/lib/stellar';
 import { useStore } from '@/lib/store';
 
 interface TokenTrancheConfig {
@@ -80,7 +80,7 @@ export default function TrancheConfigPage() {
       );
       const freighter = await import('@stellar/freighter-api');
       const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015',
+        networkPassphrase: NETWORK,
         address: wallet.address,
       });
       if (signError) throw new Error(signError.message);

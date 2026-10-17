@@ -17,7 +17,13 @@ import {
   buildFundReserveFromTreasuryTx,
   buildSetInsuranceContractTx,
 } from '@/lib/contracts';
-import { submitTx, stablecoinLabel, formatUSDC, INSURANCE_CONTRACT_ID } from '@/lib/stellar';
+import {
+  NETWORK,
+  submitTx,
+  stablecoinLabel,
+  formatUSDC,
+  INSURANCE_CONTRACT_ID,
+} from '@/lib/stellar';
 import { useStore } from '@/lib/store';
 
 const DEFAULT_PREMIUM_CONFIG: PremiumConfig = {
@@ -73,7 +79,7 @@ export default function InsuranceAdminPage() {
     if (!wallet.address) throw new Error('Connect your admin wallet first.');
     const freighter = await import('@stellar/freighter-api');
     const { signedTxXdr, error: signError } = await freighter.signTransaction(txXdr, {
-      networkPassphrase: 'Test SDF Network ; September 2015',
+      networkPassphrase: NETWORK,
       address: wallet.address,
     });
     if (signError) throw new Error(signError.message || 'Signing rejected.');

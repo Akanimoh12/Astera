@@ -6,7 +6,14 @@ import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { useStore } from '@/lib/store';
 import { buildCreateInvoiceTx, submitTx, getMaxInvoiceAmount } from '@/lib/contracts';
-import { toStroops, nativeToScVal, Address, xdr, INVOICE_CONTRACT_ID } from '@/lib/stellar';
+import {
+  NETWORK,
+  toStroops,
+  nativeToScVal,
+  Address,
+  xdr,
+  INVOICE_CONTRACT_ID,
+} from '@/lib/stellar';
 import { simulateContractCall } from '@/lib/simulateFee';
 import { useTransactionSimulation } from '@/hooks/useTransactionSimulation';
 import EstimatedFee from '@/components/EstimatedFee';
@@ -205,7 +212,7 @@ export default function NewInvoicePage() {
 
       const freighter = await import('@stellar/freighter-api');
       const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015',
+        networkPassphrase: NETWORK,
         address: wallet.address,
       });
       if (signError) throw new Error(signError.message);

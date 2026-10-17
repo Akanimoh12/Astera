@@ -21,7 +21,7 @@ import {
   buildDrainWithdrawalQueueTx,
   submitTx,
 } from '@/lib/contracts';
-import { formatUSDC, stablecoinLabel } from '@/lib/stellar';
+import { NETWORK, formatUSDC, stablecoinLabel } from '@/lib/stellar';
 import type { PoolTokenTotals, WithdrawalRequest, LiquidityForecastPoint } from '@/lib/types';
 
 const HORIZON_OPTIONS = [30, 60, 90] as const;
@@ -92,7 +92,7 @@ export default function AdminLiquidityPage() {
       const xdr = await buildDrainWithdrawalQueueTx(wallet.address, token);
       const freighter = await import('@stellar/freighter-api');
       const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015',
+        networkPassphrase: NETWORK,
         address: wallet.address,
       });
       if (signError) throw new Error(signError.message);
