@@ -11,7 +11,7 @@ use soroban_sdk::{
 };
 
 /// #396: Typed error codes for the credit-score contract.
-/// All error codes are stable — do not re-number existing entries.
+/// All error codes are stable - do not re-number existing entries.
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
@@ -26,7 +26,7 @@ pub enum CreditScoreError {
     InvoiceAlreadyProcessed = 4,
     /// Score thresholds are not strictly decreasing.
     InvalidThresholds = 5,
-    /// Late-payment threshold is outside the valid 1–365 day range.
+    /// Late-payment threshold is outside the valid 1-365 day range.
     InvalidLateThreshold = 6,
     /// Payment history limit must be greater than zero.
     PaymentHistoryLimitZero = 7,
@@ -71,6 +71,8 @@ pub enum CreditScoreError {
     InvalidAttestorType = 26,
     /// #1041: risk-signal basis-point fields must be in [0, 10_000].
     InvalidRiskSignal = 27,
+    /// Scoring configuration failed validation.
+    InvalidScoringConfig = 28,
 }
 
 /// Semantic version of this credit-score contract (#237).
@@ -126,9 +128,9 @@ const VOLUME_BONUS_POINTS_3: i32 = 25;
 const DEFAULT_MIN_MILESTONE_VOLUME: i128 = 100_000_000;
 
 const LATE_PAYMENT_THRESHOLD_SECS: u64 = 7 * 24 * 60 * 60;
-const UPGRADE_TIMELOCK_SECS: u64 = 86400; // 24 hours — default
+const UPGRADE_TIMELOCK_SECS: u64 = 86400; // 24 hours - default
 const MIN_UPGRADE_TIMELOCK_SECS: u64 = 3_600; // 1 hour minimum (#338)
-const ADMIN_CHANGE_TIMELOCK_SECS: u64 = 172_800; // 48 hours — #565
+const ADMIN_CHANGE_TIMELOCK_SECS: u64 = 172_800; // 48 hours - #565
 /// Current on-chain storage schema version (#397). Bump by one and add a
 /// matching arm in `run_migration` whenever the persistent storage layout
 /// changes so a deployed contract can migrate state after a WASM upgrade.
@@ -137,7 +139,7 @@ const ADMIN_CHANGE_TIMELOCK_SECS: u64 = 172_800; // 48 hours — #565
 /// credit_score v2. `ScoringConfig` is stored as a single versioned blob that
 /// is only ever replaced wholesale via the admin-only `set_scoring_config`
 /// (never partially decoded), so there is no in-place field migration to run
-/// here — an operator upgrading a live contract must call `set_scoring_config`
+/// here - an operator upgrading a live contract must call `set_scoring_config`
 /// once with a `ScoreAttestationConfig` populated (e.g. the v2 defaults) to
 /// re-persist a config the new WASM can decode.
 const CURRENT_MIGRATION_VERSION: u32 = 2;
@@ -146,9 +148,9 @@ pub const MAX_PAYMENT_HISTORY: u32 = 100;
 /// Max page size for list_all_sme_stats to prevent gas exhaustion.
 const MAX_SME_PAGE_SIZE: u32 = 100;
 
-/// #868: attestor weight is basis points of a 0–10_000 (0–100%) scale.
+/// #868: attestor weight is basis points of a 0-10_000 (0-100%) scale.
 const MAX_WEIGHT_BPS: u32 = 10_000;
-/// #868: attestation `score_contribution` is a normalized 0–1000 signal.
+/// #868: attestation `score_contribution` is a normalized 0-1000 signal.
 const MAX_SCORE_CONTRIBUTION: u32 = 1000;
 /// #868: an attestation cannot be issued with an expiry more than ~2 years out,
 /// preventing absurd far-future expiries that would never lapse.
@@ -256,7 +258,7 @@ pub struct ScoreAttestationConfig {
 
 // #1041: risk/trend adjustment magnitudes are plain constants rather than a
 // versioned ScoringConfig sub-struct (unlike core/averages/bonuses/
-// attestation) — the contract's compiled WASM size is budget-capped in CI
+// attestation) - the contract's compiled WASM size is budget-capped in CI
 // (10% growth per PR), and each additional #[contracttype] struct's
 // TryFromVal/IntoVal derive is a meaningful chunk of that budget. Making
 // these configurable on-chain is a reasonable follow-up if the size budget
@@ -319,7 +321,7 @@ impl ScoringConfig {
                 vol_bonus_pts3: VOLUME_BONUS_POINTS_3,
                 min_milestone_volume: DEFAULT_MIN_MILESTONE_VOLUME,
             },
-            // #868: 30% external weight by default — meaningful but bounded influence
+            // #868: 30% external weight by default - meaningful but bounded influence
             // for SMEs who have attestations; SMEs with none are unaffected (see
             // `blend_score`, which returns the internal score untouched when there is
             // no external component regardless of these weights).
@@ -368,7 +370,7 @@ pub struct AttestorInfo {
     pub address: Address,
     pub attestor_type: AttestorType,
     pub is_active: bool,
-    /// Basis points (1–10_000) weighting this attestor's contribution within
+    /// Basis points (1-10_000) weighting this attestor's contribution within
     /// the weighted average of an SME's active attestations.
     pub weight_bps: u32,
     pub registered_at: u64,
@@ -384,8 +386,8 @@ pub enum AttestationStatus {
 }
 
 /// #868: a single external credit signal submitted by a registered attestor
-/// about an SME. `score_contribution` is the attestor's own 0–1000 normalized
-/// signal — not directly the final blended score.
+/// about an SME. `score_contribution` is the attestor's own 0-1000 normalized
+/// signal - not directly the final blended score.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Attestation {
@@ -394,7 +396,7 @@ pub struct Attestation {
     pub attestor: Address,
     pub attestation_type: AttestorType,
     pub score_contribution: u32,
-    /// Off-chain document/report hash — no PII stored on-chain.
+    /// Off-chain document/report hash - no PII stored on-chain.
     pub evidence_hash: String,
     pub submitted_at: u64,
     pub expires_at: u64,
@@ -414,9 +416,9 @@ pub struct SimulateScoreCacheEntry {
 
 // #1041: off-chain-computed risk signal for an SME (see `submit_risk_signal`),
 // sourced from the indexer's aggregation of `invoice` contract events
-// (debtor concentration, invoice-size distribution) — this contract does not
+// (debtor concentration, invoice-size distribution) - this contract does not
 // call into `invoice` directly. Packed into a single u32 (debtor_concentration
-// in the high 16 bits, invoice_size_risk in the low 16 bits — both are
+// in the high 16 bits, invoice_size_risk in the low 16 bits - both are
 // bps values <= MAX_WEIGHT_BPS, well within 16 bits) rather than a
 // dedicated #[contracttype] struct, whose TryFromVal/IntoVal derive would
 // otherwise be a meaningful chunk of this contract's WASM-size budget.
@@ -452,11 +454,11 @@ pub struct CreditScoreResponse {
     pub score_version: u32,
     /// Config version currently active on the contract.
     pub config_version: u32,
-    /// True when `score_version != config_version` — the score is stale.
+    /// True when `score_version != config_version` - the score is stale.
     pub is_stale: bool,
     /// #868: `score` blended with the SME's active external attestations
     /// (`ScoreAttestationConfig` weights). Equal to `score` when the SME has
-    /// zero active attestations — existing SMEs are never regressed by v2.
+    /// zero active attestations - existing SMEs are never regressed by v2.
     pub blended_score: u32,
     /// #1041: point delta from debtor-concentration + invoice-size risk
     /// signals. 0 when no risk signal has been submitted for this SME.
@@ -465,7 +467,7 @@ pub struct CreditScoreResponse {
     /// has fewer than `TREND_WINDOW` payment records.
     pub trend_adjustment_pts: i32,
     /// #1041: `blended_score` + `risk_adjustment_pts` + `trend_adjustment_pts`,
-    /// clamped to `[min_score, max_score]`. The headline v2 score — surfaces
+    /// clamped to `[min_score, max_score]`. The headline v2 score - surfaces
     /// all contributing factors rather than one opaque number when combined
     /// with the fields above.
     pub final_score: u32,
@@ -533,7 +535,7 @@ pub enum DataKey {
     /// #1041: monotonic per-SME counter bumped on every attestation status
     /// change (dispute/resolve). Folded into the `SimulateScoreCache` key so a
     /// disputed-or-resolved attestation can never be served from a stale
-    /// pre-change cache entry — see `dispute_attestation`/`resolve_attestation_dispute`.
+    /// pre-change cache entry - see `dispute_attestation`/`resolve_attestation_dispute`.
     AttestationGeneration(Address),
 }
 
@@ -742,7 +744,7 @@ fn calculate_average_payment_days(paid_on_time: u32, paid_late: u32, total_late_
 }
 
 /// #868: weighted average of active attestation `score_contribution`s (each
-/// 0–1000), scaled into the `[min_score, max_score]` credit-score range.
+/// 0-1000), scaled into the `[min_score, max_score]` credit-score range.
 /// Returns `None` when there are no active attestations so callers can
 /// distinguish "no external signal" from "external signal happens to equal
 /// the internal score".
@@ -772,7 +774,7 @@ fn compute_external_component(
 /// #868: blend the internal (payment-history) score with the external
 /// attestation component per `ScoreAttestationConfig`. Degrades to
 /// `internal_score` untouched when `external` is `None` (zero active
-/// attestations) — this is what keeps every pre-v2 SME's score unchanged.
+/// attestations) - this is what keeps every pre-v2 SME's score unchanged.
 fn blend_score(
     internal_score: u32,
     external: Option<u32>,
@@ -797,12 +799,12 @@ fn blend_score(
 
 /// Deterministic hash of a `(weight_bps, score_contribution)` vector plus the
 /// SME's current attestation generation, for cache-key derivation. Not a
-/// cryptographic hash — we only need collision resistance within a single
+/// cryptographic hash - we only need collision resistance within a single
 /// SME's attestation set, which is tiny (<100).
 ///
 /// #1041: folding in `generation` (bumped on every `dispute_attestation`/
 /// `resolve_attestation_dispute` call, see those functions) ensures a
-/// dispute or resolution always produces a fresh cache key — a stale
+/// dispute or resolution always produces a fresh cache key - a stale
 /// pre-change `SimulateScoreCacheEntry` becomes permanently unreachable
 /// instead of being served for up to `SIMULATE_CACHE_TTL_SECS` after the
 /// attestation set it was computed from has changed.
@@ -843,7 +845,7 @@ fn compute_risk_adjustment(env: &Env, sme: &Address) -> i32 {
 
 /// #1041: point delta from comparing the SME's on-time rate over the most
 /// recent `TREND_WINDOW` payment records (`history`, already fetched by the
-/// caller via `get_payment_history` — reused rather than re-walking the ring
+/// caller via `get_payment_history` - reused rather than re-walking the ring
 /// buffer here) against their lifetime on-time rate. Returns 0 when there
 /// are fewer than `TREND_WINDOW` records (too little history for a
 /// meaningful trend) or when the recent rate is within 1 percentage point of
@@ -1071,7 +1073,7 @@ impl CreditScoreContract {
             );
         }
         // Snapshot the late threshold so future score computations use the
-        // value that was in effect at record time — threshold changes applied
+        // value that was in effect at record time - threshold changes applied
         // via set_late_threshold only affect payments recorded after the change.
         let late_threshold = get_late_threshold(env);
         env.storage()
@@ -1191,7 +1193,7 @@ impl CreditScoreContract {
     }
 
     /// Record that the borrower's invoice has been successfully funded (#534).
-    /// Being funded is a positive demand signal — lenders deployed capital,
+    /// Being funded is a positive demand signal - lenders deployed capital,
     /// which is evidence of creditworthiness. The weight is intentionally light
     /// so funding events alone cannot override a poor repayment history.
     ///
@@ -1480,20 +1482,20 @@ impl CreditScoreContract {
         if !(config.core.min_score <= config.core.base_score
             && config.core.base_score <= config.core.max_score)
         {
-            panic!("invalid scoring config: min/base/max scores out of order");
+            panic_with_error!(&env, CreditScoreError::InvalidScoringConfig);
         }
         if config.averages.avg_days_lt3 >= config.averages.avg_days_lt7 {
-            panic!("invalid scoring config: average-payment thresholds must increase");
+            panic_with_error!(&env, CreditScoreError::InvalidScoringConfig);
         }
         if !(config.bonuses.inv_bonus_thr1 < config.bonuses.inv_bonus_thr2
             && config.bonuses.inv_bonus_thr2 < config.bonuses.inv_bonus_thr3
             && config.bonuses.vol_bonus_thr1 < config.bonuses.vol_bonus_thr2
             && config.bonuses.vol_bonus_thr2 < config.bonuses.vol_bonus_thr3)
         {
-            panic!("invalid scoring config: thresholds must increase");
+            panic_with_error!(&env, CreditScoreError::InvalidScoringConfig);
         }
         if config.core.score_version == 0 {
-            panic!("invalid scoring config: score_version must be positive");
+            panic_with_error!(&env, CreditScoreError::InvalidScoringConfig);
         }
         if config.core.paid_on_time_pts <= 0
             || config.core.paid_late_pts <= 0
@@ -1502,10 +1504,10 @@ impl CreditScoreContract {
             || config.bonuses.vol_bonus_pts2 <= 0
             || config.bonuses.vol_bonus_pts3 <= 0
         {
-            panic!("invalid scoring config: positive point values required");
+            panic_with_error!(&env, CreditScoreError::InvalidScoringConfig);
         }
         // #868: internal/external attestation blend weights must sum to exactly
-        // 10_000 bps (100%) — validated explicitly rather than silently normalized.
+        // 10_000 bps (100%) - validated explicitly rather than silently normalized.
         if config.attestation.internal_weight_bps > MAX_WEIGHT_BPS
             || config.attestation.external_weight_bps > MAX_WEIGHT_BPS
             || config.attestation.internal_weight_bps + config.attestation.external_weight_bps
@@ -1516,7 +1518,7 @@ impl CreditScoreContract {
 
         let old = load_scoring_config(&env);
         if config.core.score_version <= old.core.score_version {
-            panic!("invalid scoring config: score_version must increase");
+            panic_with_error!(&env, CreditScoreError::InvalidScoringConfig);
         }
 
         env.storage()
@@ -1581,7 +1583,7 @@ impl CreditScoreContract {
 
     /// #1041: submit (or replace) an SME's off-chain-computed risk signal
     /// (debtor concentration / invoice-size risk, aggregated by the indexer
-    /// from `invoice` contract events — this contract never calls into
+    /// from `invoice` contract events - this contract never calls into
     /// `invoice` directly). Admin-only, reusing the existing admin role
     /// rather than a dedicated keeper address/entrypoint, to keep this
     /// contract's compiled size within CI's growth budget.
@@ -1612,7 +1614,7 @@ impl CreditScoreContract {
     }
 
     /// Set the late-payment threshold (in days) used in score calculation.
-    /// Default is 30 days. Valid range: 1–365.
+    /// Default is 30 days. Valid range: 1-365.
     pub fn set_late_threshold(env: Env, admin: Address, days: i64) {
         bump_instance(&env);
         admin.require_auth();
@@ -1996,7 +1998,7 @@ impl CreditScoreContract {
             .publish((EVT, Symbol::new(&env, "admin_chg_cancelled")), admin);
     }
 
-    // === #868: credit_score v2 — external attestations + dispute mechanism ===
+    // === #868: credit_score v2 - external attestations + dispute mechanism ===
 
     /// Register (or re-register/reactivate) an attestor. Admin-only.
     pub fn register_attestor(
@@ -2041,7 +2043,7 @@ impl CreditScoreContract {
     }
 
     /// Deactivate a registered attestor. Admin-only. Does not retroactively
-    /// invalidate attestations the attestor already submitted — only new
+    /// invalidate attestations the attestor already submitted - only new
     /// `submit_attestation` calls from them are blocked going forward.
     pub fn deactivate_attestor(env: Env, admin: Address, address: Address) {
         admin.require_auth();
@@ -2195,7 +2197,7 @@ impl CreditScoreContract {
         id
     }
 
-    /// Lazily flips a stale-but-Active attestation to Expired at read time —
+    /// Lazily flips a stale-but-Active attestation to Expired at read time -
     /// no separate cleanup transaction required.
     fn maybe_expire_attestation(env: &Env, mut attestation: Attestation) -> Attestation {
         if attestation.status != AttestationStatus::Active {
@@ -2246,7 +2248,7 @@ impl CreditScoreContract {
 
     /// (weight_bps, score_contribution) pairs for every currently-Active
     /// attestation about `sme`. Attestor deactivation does *not* filter these
-    /// out — only disputing/revoking/expiring an individual attestation does.
+    /// out - only disputing/revoking/expiring an individual attestation does.
     fn collect_active_attestation_signals(env: &Env, sme: &Address) -> Vec<(u32, u32)> {
         let ids: Vec<u64> = env
             .storage()
@@ -2434,7 +2436,7 @@ impl CreditScoreContract {
     /// #1041: bump `sme`'s attestation-generation counter. Called on every
     /// dispute filed or resolved so `simulate_score_with_attestations`'s
     /// cache key (see `hash_attestation_pairs`) can never serve a result
-    /// computed before the status change — see the module-level bug note on
+    /// computed before the status change - see the module-level bug note on
     /// why this fix is needed (the read-time `get_credit_score`/
     /// `compute_blended_score` path has no such cache and was never affected).
     fn bump_attestation_generation(env: &Env, sme: &Address) {
@@ -2480,7 +2482,7 @@ mod test {
     #[test]
     fn test_get_credit_score_new_borrower_returns_default_without_panic() {
         // #768: get_credit_score() must not panic for a borrower with no payment
-        // history — it should return a default CreditScoreResponse instead.
+        // history - it should return a default CreditScoreResponse instead.
         let env = Env::default();
         env.mock_all_auths();
 
@@ -2916,13 +2918,13 @@ mod test {
 
                 assert!(
                     score_on_time >= score_late,
-                    "on_time score {} < late score {} — monotonicity violated",
+                    "on_time score {} < late score {} - monotonicity violated",
                     score_on_time,
                     score_late
                 );
                 assert!(
                     score_late >= score_default,
-                    "late score {} < default score {} — monotonicity violated",
+                    "late score {} < default score {} - monotonicity violated",
                     score_late,
                     score_default
                 );
@@ -2930,7 +2932,7 @@ mod test {
         });
     }
 
-    // **Feature: credit-scoring, Property 3: Defaults dominate — score below BASE when defaults exceed on-time**
+    // **Feature: credit-scoring, Property 3: Defaults dominate - score below BASE when defaults exceed on-time**
     // **Validates: Requirements 4.1**
     #[test]
     fn test_prop_defaults_dominate() {
@@ -3490,14 +3492,14 @@ mod test {
 
     #[test]
     fn test_average_payment_days_single_on_time_payment() {
-        // One on-time payment with 0 late days → average is 0.
+        // One on-time payment with 0 late days ? average is 0.
         let result = calculate_average_payment_days(1, 0, 0);
         assert_eq!(result, 0);
     }
 
     #[test]
     fn test_average_payment_days_single_late_payment() {
-        // One late payment with 5 days late → average is 5.
+        // One late payment with 5 days late ? average is 5.
         let result = calculate_average_payment_days(0, 1, 5);
         assert_eq!(result, 5);
     }
@@ -3616,7 +3618,7 @@ mod test {
         client.record_payment(&pool, &1, &sme, &1_000i128, &due_date, &(due_date - 1000));
         let data_before = client.get_credit_score(&sme);
 
-        // Add a default — must not change average_payment_days
+        // Add a default - must not change average_payment_days
         client.record_default(&pool, &2, &sme, &1_000i128, &due_date);
         let data_after = client.get_credit_score(&sme);
 
@@ -3734,7 +3736,7 @@ mod test {
     fn test_unauthorized_record_payment_panics() {
         // A random address that is not the pool must fail require_auth
         let env = Env::default();
-        // No mock_all_auths — auth checks are enforced
+        // No mock_all_auths - auth checks are enforced
         let (client, _admin, _inv, _pool) = setup(&env);
         let sme = Address::generate(&env);
         let attacker = Address::generate(&env);
@@ -3809,16 +3811,16 @@ mod test {
         let sme1 = Address::generate(&env);
         let sme2 = Address::generate(&env);
 
-        // sme1: threshold=1 (8 days late > 1 → penalty)
+        // sme1: threshold=1 (8 days late > 1 ? penalty)
         client.set_late_threshold(&admin, &1);
         let due = 200_000u64;
-        // Exactly 7 days late → still PaidLate (≤7 day threshold), but days_late=8
+        // Exactly 7 days late ? still PaidLate (?7 day threshold), but days_late=8
         // so avg_days=8 which is >7 and enters the late_threshold penalty branch
         let paid_late = due + 7 * 86_400;
         client.record_payment(&pool, &1, &sme1, &1_000_000_000i128, &due, &paid_late);
         let score_strict = client.get_credit_score(&sme1).score;
 
-        // sme2: threshold=60 (8 days late ≤ 60 → no penalty)
+        // sme2: threshold=60 (8 days late ? 60 ? no penalty)
         client.set_late_threshold(&admin, &60);
         client.record_payment(&pool, &2, &sme2, &1_000_000_000i128, &due, &paid_late);
         let score_lenient = client.get_credit_score(&sme2).score;
@@ -3895,7 +3897,7 @@ mod test {
         );
     }
 
-    // ── #338: configurable upgrade timelock tests ─────────────────────────────
+    // ?? #338: configurable upgrade timelock tests ?????????????????????????????
 
     #[test]
     fn test_credit_score_upgrade_timelock_default_is_24h() {
@@ -3945,7 +3947,7 @@ mod test {
         );
     }
 
-    // ── #340: WASM hash validation tests ─────────────────────────────────────
+    // ?? #340: WASM hash validation tests ?????????????????????????????????????
 
     #[test]
     fn test_credit_score_propose_upgrade_zero_hash_rejected() {
@@ -3969,7 +3971,7 @@ mod test {
         client.propose_upgrade(&admin, &valid_hash);
     }
 
-    // ── #573: config-version staleness detection ──────────────────────────────
+    // ?? #573: config-version staleness detection ??????????????????????????????
 
     #[test]
     fn test_get_credit_score_returns_config_version() {
@@ -4097,7 +4099,7 @@ mod test {
         // Confirm stale.
         assert!(client.get_credit_score(&sme).is_stale);
 
-        // New payment recorded under v2 — score is recomputed under the new config.
+        // New payment recorded under v2 - score is recomputed under the new config.
         client.record_payment(
             &pool,
             &2,
@@ -4148,7 +4150,7 @@ mod test {
         assert!(!resp.is_stale);
     }
 
-    // ── #565: credit_score admin key rotation timelock tests ─────────────────
+    // ?? #565: credit_score admin key rotation timelock tests ?????????????????
 
     #[test]
     fn test_cs_propose_admin_change_stores_pending() {
@@ -4230,7 +4232,7 @@ mod test {
         );
     }
 
-    // === #868: credit_score v2 — external attestations + dispute mechanism ===
+    // === #868: credit_score v2 - external attestations + dispute mechanism ===
 
     fn register_test_attestor(
         env: &Env,
@@ -4585,7 +4587,7 @@ mod test {
         let after_revoke = client.get_credit_score(&sme);
         assert_eq!(after_revoke.blended_score, after_revoke.score);
 
-        // Revocation is permanent — cannot be disputed/resolved again.
+        // Revocation is permanent - cannot be disputed/resolved again.
         let redispute = client.try_dispute_attestation(&sme, &id, &String::from_str(&env, "x"));
         assert_eq!(
             redispute.unwrap_err().unwrap(),
@@ -4852,7 +4854,7 @@ mod test {
     #[test]
     fn test_re_registering_attestor_updates_weight_without_new_entrypoint() {
         // #1041: register_attestor already overwrites weight_bps in place when
-        // called again for an existing address — governance can change an
+        // called again for an existing address - governance can change an
         // attestor's credibility weight via this existing admin-only
         // entrypoint, with no need for a dedicated "update weight" entrypoint.
         let env = Env::default();
@@ -4904,7 +4906,7 @@ mod test {
             "baseline simulate should reflect the active attestation"
         );
 
-        // Still well within SIMULATE_CACHE_TTL_SECS — a naive cache key of
+        // Still well within SIMULATE_CACHE_TTL_SECS - a naive cache key of
         // just (sme, hash(hypothetical)) would serve the pre-dispute value
         // here. The attestation-generation bump in dispute_attestation must
         // force a fresh computation instead.

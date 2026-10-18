@@ -1,4 +1,7 @@
-use pool::{FundingPool, FundingPoolClient, PoolError};
+use pool::{
+    CollateralDeposit, DataKey, FundedInvoice, FundingPool, FundingPoolClient, PoolError,
+    PoolTokenTotals,
+};
 use soroban_sdk::{
     contract, contractimpl,
     testutils::{Address as _, Ledger},
@@ -56,6 +59,18 @@ impl DummyInvoice {
         env.storage()
             .instance()
             .set(&Symbol::new(&env, "pool"), &pool);
+    }
+
+    pub fn is_invoice_defaulted(env: Env, _id: u64) -> bool {
+        let stored: Option<bool> =
+            env.storage().persistent().get(&Symbol::new(&env, "inv_def"));
+        stored.unwrap_or(false)
+    }
+
+    pub fn set_invoice_defaulted(env: Env, id: u64, defaulted: bool) {
+        env.storage()
+            .persistent()
+            .set(&Symbol::new(&env, "inv_def"), &defaulted);
     }
 }
 
@@ -586,4 +601,107 @@ fn test_full_borrower_lifecycle() {
 
     let pool_balance_final = token::Client::new(&env, &usdc_id).balance(&pool_client.address);
     assert!(pool_balance_final > pool_balance_after);
+}
+
+#[test]
+fn test_seize_collateral_cross_asset_write_off() {
+    // #1505: collateral seizure accounting when the collateral token differs from the loan token.
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, usdc_id) = setup(&env);
+
+    let collateral_token_admin = Address::generate(&env);
+    let collateral_token = token::StellarAssetClient::new(
+        &env,
+        &env.register_stellar_asset_contract_v2(collateral_token_admin.clone()).address(),
+    );
+    let depositor = Address::generate(&env);
+    let caller = Address::generate(&env);
+
+    let now = env.ledger().timestamp();
+    let invoice_id: u64 = 1;
+    let principal: i128 = 10_000;
+    let collateral_amount: i128 = 5_000;
+
+    let config = client.get_config();
+
+    // Seed a funded invoice denominated in the loan token (usdc).
+    env.storage()
+        .persistent()
+        .set(
+            &DataKey::FundedInvoice(invoice_id),
+            &FundedInvoice {
+                invoice_id,
+                sme: admin.clone(),
+                token: usdc_id.clone(),
+                principal,
+                funded_at: now,
+                factoring_fee: 0,
+                due_date: now + 100_000,
+                repaid_amount: 0,
+                co_funding_round_id: None,
+                locked_yield_bps: config.yield_bps,
+            },
+        );
+
+    // Seed a collateral deposit denominated in a DIFFERENT token (collateral_token).
+    env.storage()
+        .persistent()
+        .set(
+            &DataKey::CollateralDeposit(invoice_id),
+            &CollateralDeposit {
+                invoice_id,
+                depositor: depositor.clone(),
+                token: collateral_token.address.clone(),
+                amount: collateral_amount,
+                settled: false,
+                posted_at: now,
+                released_at: 0,
+                seized_at: 0,
+                collateral_bps_at_deposit: 2_000,
+                threshold_at_deposit: 100_000_000_000,
+            },
+        );
+
+    // Seed token totals: usdc carries the deployed principal; collateral token starts empty.
+    env.storage()
+        .instance()
+        .set(
+            &DataKey::TokenTotals(usdc_id.clone()),
+            &PoolTokenTotals {
+                pool_value: 100_000,
+                total_deployed: principal,
+                ..Default::default()
+            },
+        );
+    env.storage()
+        .instance()
+        .set(
+            &DataKey::TokenTotals(collateral_token.address.clone()),
+            &PoolTokenTotals::default(),
+        );
+
+    // Mark the invoice defaulted so seizure is permitted.
+    DummyInvoiceClient::new(&env, &config.invoice_contract)
+        .set_invoice_defaulted(&invoice_id, &true);
+
+    // Seize the collateral via the permissionless liquidation path.
+    client.liquidate_invoice(&caller, &invoice_id);
+
+    // The loan token's principal receivable is written off.
+    let usdc_totals = client.get_token_totals(&usdc_id);
+    assert_eq!(usdc_totals.pool_value, 100_000 - principal);
+    assert_eq!(usdc_totals.total_deployed, 0);
+
+    // The recovered collateral is credited to the collateral token's totals.
+    let col_totals = client.get_token_totals(&collateral_token.address);
+    assert_eq!(col_totals.pool_value, collateral_amount);
+
+    // The collateral deposit is marked settled.
+    let col: CollateralDeposit = env
+        .storage()
+        .persistent()
+        .get(&DataKey::CollateralDeposit(invoice_id))
+        .unwrap();
+    assert!(col.settled);
 }

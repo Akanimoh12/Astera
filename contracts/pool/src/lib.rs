@@ -2144,23 +2144,24 @@ impl FundingPool {
         }
 
         // Check 4: No active co-funding commitments in this token (#567)
-        // Scan all FundedInvoice records to find any in co-funding phase with commitments in this token
-        let stats: PoolStorageStats = env
+        // Enumerate only invoices funded against this token via the per-token index
+        // (TokenInvoiceIds), instead of scanning every funded invoice ever recorded
+        // across all tokens — total_funded_invoices only ever grows, so the old scan
+        // became prohibitively expensive as the pool's lifetime invoice count grew.
+        let token_invoice_ids: Vec<u64> = env
             .storage()
-            .instance()
-            .get(&DataKey::StorageStats)
-            .unwrap_or_default();
+            .persistent()
+            .get(&DataKey::TokenInvoiceIds(token.clone()))
+            .unwrap_or(Vec::new(env));
 
-        for invoice_idx in 0..stats.total_funded_invoices {
+        for i in 0..token_invoice_ids.len() {
+            let invoice_id = token_invoice_ids.get(i).ok_or(PoolError::StorageCorrupted)?;
             if let Some(funded_invoice) = env
                 .storage()
                 .persistent()
-                .get::<DataKey, FundedInvoice>(&DataKey::FundedInvoice(invoice_idx))
+                .get::<DataKey, FundedInvoice>(&DataKey::FundedInvoice(invoice_id))
             {
-                // Check if this funded invoice uses the target token
                 if &funded_invoice.token == token {
-                    // Found an active funded invoice using this token
-                    // This represents a co-funding commitment that must be settled before removal
                     return Err(PoolError::TokenHasActiveCofundingCommitments);
                 }
             }
@@ -3866,26 +3867,40 @@ impl FundingPool {
                 return Err(PoolError::CollateralAlreadySettled);
             }
 
-            // Credit the seized collateral into the pool's token totals so investors benefit.
-            let token_totals_key = DataKey::TokenTotals(col.token.clone());
-            let mut tt: PoolTokenTotals = env
+            // Write off the defaulted invoice's principal against the LOAN token's totals
+            // (record.token). The principal receivable is no longer an asset, and
+            // total_deployed drops by the full principal since the invoice is no longer
+            // outstanding. When the collateral token equals the loan token this nets out
+            // identically to the previous single-token accounting.
+            let loan_tt_key = DataKey::TokenTotals(record.token.clone());
+            let mut loan_tt: PoolTokenTotals = env
                 .storage()
                 .instance()
-                .get(&token_totals_key)
+                .get(&loan_tt_key)
                 .unwrap_or_default();
-
-            // The defaulted invoice's principal is a receivable that pool_value already
-            // counts as an asset (via total_deployed) — it must be written off here, offset
-            // by whatever collateral was actually recovered, or pool_value silently overstates
-            // investor claims by the unrecovered shortfall. total_deployed drops by the full
-            // principal regardless, since the invoice is no longer outstanding either way.
-            tt.pool_value = tt
+            loan_tt.pool_value = loan_tt
                 .pool_value
                 .checked_sub(record.principal)
-                .and_then(|v| v.checked_add(col.amount))
                 .ok_or(PoolError::AmountOverflow)?;
-            tt.total_deployed -= record.principal;
-            env.storage().instance().set(&token_totals_key, &tt);
+            loan_tt.total_deployed = loan_tt
+                .total_deployed
+                .checked_sub(record.principal)
+                .ok_or(PoolError::AmountOverflow)?;
+            env.storage().instance().set(&loan_tt_key, &loan_tt);
+
+            // Credit the recovered collateral into the COLLATERAL token's totals
+            // (col.token) so investors benefit from the seizure proceeds.
+            let col_tt_key = DataKey::TokenTotals(col.token.clone());
+            let mut col_tt: PoolTokenTotals = env
+                .storage()
+                .instance()
+                .get(&col_tt_key)
+                .unwrap_or_default();
+            col_tt.pool_value = col_tt
+                .pool_value
+                .checked_add(col.amount)
+                .ok_or(PoolError::AmountOverflow)?;
+            env.storage().instance().set(&col_tt_key, &col_tt);
 
             col.settled = true;
             col.seized_at = now;
@@ -4021,7 +4036,7 @@ impl FundingPool {
             .instance()
             .get(&DataKey::Config)
             .ok_or(PoolError::NotInitialized)?;
-        if config.proposed_yield_bps == 0 || config.yield_proposal_at == 0 {
+        if config.yield_proposal_at == 0 {
             return Err(PoolError::YieldProposalNotFound);
         }
 
