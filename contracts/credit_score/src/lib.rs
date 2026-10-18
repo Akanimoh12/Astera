@@ -71,6 +71,8 @@ pub enum CreditScoreError {
     InvalidAttestorType = 26,
     /// #1041: risk-signal basis-point fields must be in [0, 10_000].
     InvalidRiskSignal = 27,
+    /// Scoring configuration failed validation.
+    InvalidScoringConfig = 28,
 }
 
 /// Semantic version of this credit-score contract (#237).
@@ -1437,20 +1439,20 @@ impl CreditScoreContract {
         if !(config.core.min_score <= config.core.base_score
             && config.core.base_score <= config.core.max_score)
         {
-            panic!("invalid scoring config: min/base/max scores out of order");
+            panic_with_error!(&env, CreditScoreError::InvalidScoringConfig);
         }
         if config.averages.avg_days_lt3 >= config.averages.avg_days_lt7 {
-            panic!("invalid scoring config: average-payment thresholds must increase");
+            panic_with_error!(&env, CreditScoreError::InvalidScoringConfig);
         }
         if !(config.bonuses.inv_bonus_thr1 < config.bonuses.inv_bonus_thr2
             && config.bonuses.inv_bonus_thr2 < config.bonuses.inv_bonus_thr3
             && config.bonuses.vol_bonus_thr1 < config.bonuses.vol_bonus_thr2
             && config.bonuses.vol_bonus_thr2 < config.bonuses.vol_bonus_thr3)
         {
-            panic!("invalid scoring config: thresholds must increase");
+            panic_with_error!(&env, CreditScoreError::InvalidScoringConfig);
         }
         if config.core.score_version == 0 {
-            panic!("invalid scoring config: score_version must be positive");
+            panic_with_error!(&env, CreditScoreError::InvalidScoringConfig);
         }
         if config.core.paid_on_time_pts <= 0
             || config.core.paid_late_pts <= 0
@@ -1459,7 +1461,7 @@ impl CreditScoreContract {
             || config.bonuses.vol_bonus_pts2 <= 0
             || config.bonuses.vol_bonus_pts3 <= 0
         {
-            panic!("invalid scoring config: positive point values required");
+            panic_with_error!(&env, CreditScoreError::InvalidScoringConfig);
         }
         // #868: internal/external attestation blend weights must sum to exactly
         // 10_000 bps (100%) — validated explicitly rather than silently normalized.
@@ -1473,7 +1475,7 @@ impl CreditScoreContract {
 
         let old = load_scoring_config(&env);
         if config.core.score_version <= old.core.score_version {
-            panic!("invalid scoring config: score_version must increase");
+            panic_with_error!(&env, CreditScoreError::InvalidScoringConfig);
         }
 
         env.storage()
