@@ -1,10 +1,9 @@
 import { type NextRequest } from 'next/server';
-import { jwtVerify } from 'jose';
 import { INVOICE_CONTRACT_ID, POOL_CONTRACT_ID } from '../../../lib/stellar';
+import { consumeTicket } from '@/lib/sse/ticketStore';
 
 export const dynamic = 'force-dynamic';
 
-const JWT_SECRET = process.env.SEP10_JWT_SECRET || process.env.JWT_SECRET;
 const POLL_INTERVAL_MS = Number(process.env.NEXT_PUBLIC_SSE_POLL_INTERVAL_MS ?? 10_000);
 const MIN_POLL_INTERVAL_MS = 3_000;
 const HEARTBEAT_INTERVAL_MS = 30_000;
@@ -136,17 +135,15 @@ function unregisterClient(client: SseClient): void {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
-  const token = searchParams.get('token');
+  const ticket = searchParams.get('ticket');
   const invoiceIdParam = searchParams.get('invoiceId');
 
-  if (!JWT_SECRET || !token) {
+  if (!ticket) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  try {
-    const key = new TextEncoder().encode(JWT_SECRET);
-    await jwtVerify(token, key);
-  } catch {
+  const account = consumeTicket(ticket);
+  if (!account) {
     return new Response('Unauthorized', { status: 401 });
   }
 
