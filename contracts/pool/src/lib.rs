@@ -4376,6 +4376,10 @@ impl FundingPool {
         env.storage()
             .instance()
             .set(&DataKey::CreditScoreContract, &credit_score_contract);
+        env.events().publish(
+            (symbol_short!("pool"), symbol_short!("cfg_upd")),
+            credit_score_contract,
+        );
         Ok(())
     }
 
@@ -4396,6 +4400,10 @@ impl FundingPool {
         env.storage()
             .instance()
             .set(&INSURANCE_CFG, &insurance_contract);
+        env.events().publish(
+            (symbol_short!("pool"), symbol_short!("cfg_upd")),
+            insurance_contract,
+        );
         Ok(())
     }
 
