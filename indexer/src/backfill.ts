@@ -38,6 +38,8 @@ export async function runBackfill(
   const horizon = new Horizon.Server(horizonUrl);
   let currentLedger = startLedger;
   let totalEvents = 0;
+  let retryCount = 0;
+  const maxRetries = 8;
 
   while (true) {
     try {
@@ -47,6 +49,7 @@ export async function runBackfill(
         .order("asc")
         .limit(100)
         .call();
+      retryCount = 0;
 
       if (!response.records || response.records.length === 0) {
         logger.info(
@@ -88,11 +91,17 @@ export async function runBackfill(
       // Brief delay to avoid rate limiting
       await new Promise((resolve) => setTimeout(resolve, 100));
     } catch (error) {
+      retryCount += 1;
       logger.error(
-        { err: error, currentLedger },
+        { err: error, currentLedger, retryCount, maxRetries },
         "[backfill] Error during backfill",
       );
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      retryCount += 1;
+      if (retryCount > maxRetries) {
+        throw new Error(`[backfill] Aborting after ${maxRetries} consecutive failures`);
+      }
+      const delayMs = Math.min(1_000 * 2 ** (retryCount - 1), 60_000);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
 }

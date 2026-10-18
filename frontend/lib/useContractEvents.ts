@@ -31,6 +31,10 @@ interface UseContractEventsOptions {
  *
  * The browser's native EventSource reconnects automatically on drop, so no
  * manual retry logic is needed here.
+ *
+ * Security: Uses a short-lived SSE ticket obtained via Authorization header
+ * to avoid exposing the JWT token in URL query parameters (which can leak
+ * via server logs, browser history, and Referer headers).
  */
 export function useContractEvents({
   invoiceId,
@@ -51,58 +55,78 @@ export function useContractEvents({
   useEffect(() => {
     if (!enabled || typeof window === 'undefined') return;
 
-    const token = getToken();
-    if (!token) return;
+    let cancelled = false;
 
-    const url = new URL('/api/events', window.location.origin);
-    url.searchParams.set('token', token);
-    if (invoiceId !== undefined) {
-      url.searchParams.set('invoiceId', String(invoiceId));
-    }
+    async function connect(): Promise<void> {
+      const token = getToken();
+      if (!token) return;
 
-    const source = new EventSource(url.toString());
-    sourceRef.current = source;
+      const ticketRes = await fetch('/api/auth/sse-ticket', {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      });
 
-    source.onopen = () => setConnected(true);
-
-    source.onmessage = (ev: MessageEvent<string>) => {
-      let data: ContractEvent & { type?: string };
-      try {
-        data = JSON.parse(ev.data) as ContractEvent & { type?: string };
-      } catch {
+      if (!ticketRes.ok) {
+        console.warn('[useContractEvents] Failed to obtain SSE ticket:', ticketRes.status);
         return;
       }
 
-      // Skip control messages (connected / error)
-      if (data.type) return;
+      const { ticket } = (await ticketRes.json()) as { ticket: string };
+      if (cancelled) return;
 
-      invalidateCaches(data, walletAddress);
+      const url = new URL('/api/events', window.location.origin);
+      url.searchParams.set('ticket', ticket);
+      if (invoiceId !== undefined) {
+        url.searchParams.set('invoiceId', String(invoiceId));
+      }
 
-      // Prepend to Zustand recent-events list (capped at 100)
-      const storeEvent: StoreEvent = {
-        id: data.id,
-        contractId: data.contractId,
-        topic: data.topic.map(String),
-        value: data.value,
-        ledger: data.ledger,
-        ledgerCloseAt: data.ledgerCloseAt,
-        txHash: data.txHash,
-        receivedAt: Date.now(),
+      const source = new EventSource(url.toString());
+      sourceRef.current = source;
+
+      source.onopen = () => setConnected(true);
+
+      source.onmessage = (ev: MessageEvent<string>) => {
+        let data: ContractEvent & { type?: string };
+        try {
+          data = JSON.parse(ev.data) as ContractEvent & { type?: string };
+        } catch {
+          return;
+        }
+
+        // Skip control messages (connected / error)
+        if (data.type) return;
+
+        invalidateCaches(data, walletAddress);
+
+        // Prepend to Zustand recent-events list (capped at 100)
+        const storeEvent: StoreEvent = {
+          id: data.id,
+          contractId: data.contractId,
+          topic: data.topic.map(String),
+          value: data.value,
+          ledger: data.ledger,
+          ledgerCloseAt: data.ledgerCloseAt,
+          txHash: data.txHash,
+          receivedAt: Date.now(),
+        };
+        const prev = useStore.getState().recentEvents;
+        setRecentEvents([storeEvent, ...prev].slice(0, 100));
+
+        onEventRef.current?.(data);
       };
-      const prev = useStore.getState().recentEvents;
-      setRecentEvents([storeEvent, ...prev].slice(0, 100));
 
-      onEventRef.current?.(data);
-    };
+      // EventSource auto-reconnects on error — onerror is informational only
+      source.onerror = () => {
+        setConnected(false);
+        console.warn('[useContractEvents] SSE connection error — browser will retry');
+      };
+    }
 
-    // EventSource auto-reconnects on error — onerror is informational only
-    source.onerror = () => {
-      setConnected(false);
-      console.warn('[useContractEvents] SSE connection error — browser will retry');
-    };
+    void connect();
 
     return () => {
-      source.close();
+      cancelled = true;
+      sourceRef.current?.close();
       sourceRef.current = null;
       setConnected(false);
     };

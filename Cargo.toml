@@ -15,8 +15,12 @@ members = [
     "contracts/tranche",
     "contracts/secondary_market",
     "contracts/arbitration",
+    "contracts/insurance",
 ]
 resolver = "2"
+
+[workspace.package]
+license = "Apache-2.0"
 
 [workspace.dependencies]
 criterion = "0.5"

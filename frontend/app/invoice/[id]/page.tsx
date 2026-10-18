@@ -42,6 +42,7 @@ import {
   buildSubmitEvidenceTx,
 } from '@/lib/contracts';
 import {
+  NETWORK,
   formatAmount,
   formatUSDC,
   formatDate,
@@ -64,6 +65,7 @@ import { simulateContractCall } from '@/lib/simulateFee';
 import { useTransactionSimulation } from '@/hooks/useTransactionSimulation';
 import EstimatedFee from '@/components/EstimatedFee';
 import BorrowerCreditBadge from '@/components/BorrowerCreditBadge';
+import InsuranceCoverageBadge from '@/components/InsuranceCoverageBadge';
 import { projectedInterestStroops, formatApyPercent } from '@/lib/apy';
 import { parseStellarAddress } from '@/lib/types';
 import type {
@@ -537,7 +539,7 @@ export default function InvoiceDetailPage() {
       const xdr = await buildRepayTx({ payer: wallet.address, invoiceId: invoice.id, amount });
       const freighter = await import('@stellar/freighter-api');
       const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015',
+        networkPassphrase: NETWORK,
         address: wallet.address,
       });
 
@@ -595,7 +597,7 @@ export default function InvoiceDetailPage() {
       });
       const freighter = await import('@stellar/freighter-api');
       const { signedTxXdr, error: signError } = await freighter.signTransaction(txXdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015',
+        networkPassphrase: NETWORK,
         address: wallet.address,
       });
 
@@ -632,7 +634,7 @@ export default function InvoiceDetailPage() {
       });
       const freighter = await import('@stellar/freighter-api');
       const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015',
+        networkPassphrase: NETWORK,
         address: wallet.address,
       });
 
@@ -676,7 +678,7 @@ export default function InvoiceDetailPage() {
       });
       const freighter = await import('@stellar/freighter-api');
       const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015',
+        networkPassphrase: NETWORK,
         address: wallet.address,
       });
       if (signError) throw new Error(signError.message || 'Signing rejected.');
@@ -707,7 +709,7 @@ export default function InvoiceDetailPage() {
       });
       const freighter = await import('@stellar/freighter-api');
       const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015',
+        networkPassphrase: NETWORK,
         address: wallet.address,
       });
       if (signError) throw new Error(signError.message || 'Signing rejected.');
@@ -764,7 +766,7 @@ export default function InvoiceDetailPage() {
       });
       const freighter = await import('@stellar/freighter-api');
       const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015',
+        networkPassphrase: NETWORK,
         address: wallet.address,
       });
 
@@ -801,7 +803,7 @@ export default function InvoiceDetailPage() {
       });
       const freighter = await import('@stellar/freighter-api');
       const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015',
+        networkPassphrase: NETWORK,
         address: wallet.address,
       });
 
@@ -975,6 +977,12 @@ export default function InvoiceDetailPage() {
                 </span>
               </div>
             </div>
+          </div>
+        )}
+
+        {fundedInvoice && (
+          <div className="mb-6">
+            <InsuranceCoverageBadge fundedInvoice={fundedInvoice} />
           </div>
         )}
 

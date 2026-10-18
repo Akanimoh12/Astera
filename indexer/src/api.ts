@@ -1,3 +1,4 @@
+import cors from "cors";
 /**
  * Express REST API for querying indexed Soroban events.
  */
@@ -6,18 +7,80 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import pinoHttp from "pino-http";
 import { Pool } from "pg";
-import { getEvents, getLatestLedger, getTrancheApy, getSmeRiskSignals } from "./db";
+import {
+  getEvents,
+  getLatestLedger,
+  getTrancheApy,
+  getSmeRiskSignals,
+} from "./db";
+import type { GetEventsOptions } from "./db";
+import type { IndexedEvent } from "./parser";
 import { logger } from "./logger";
 import { register } from "./metrics";
+
+const MAX_REPLAY_EVENTS = Math.max(
+  1_000,
+  Number.parseInt(process.env.MAX_REPLAY_EVENTS ?? "100000", 10) || 100_000,
+);
+const MAX_PAGE_SIZE = 500;
+const MAX_OFFSET = 1_000_000;
+
+function parseBoundedInteger(
+  value: unknown,
+  fallback: number,
+  maximum: number,
+  name: string,
+): number {
+  if (value === undefined) return fallback;
+  if (typeof value !== "string" || !/^\d+$/.test(value)) {
+    throw new RangeError(`${name} must be a non-negative integer`);
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed > maximum) {
+    throw new RangeError(`${name} must be at most ${maximum}`);
+  }
+  return parsed;
+}
+
+async function getAllEvents(
+  pool: Pool,
+  options: GetEventsOptions,
+): Promise<IndexedEvent[]> {
+  const pageSize = 500;
+  const events: IndexedEvent[] = [];
+  let offset = 0;
+
+  while (true) {
+    const page = await getEvents(pool, { ...options, limit: pageSize, offset });
+    events.push(...page);
+    if (events.length > MAX_REPLAY_EVENTS) {
+      throw new RangeError(
+        `event replay exceeds the ${MAX_REPLAY_EVENTS} event safety limit`,
+      );
+    }
+    if (page.length < pageSize) return events;
+    offset += page.length;
+  }
+}
 
 export function startApiServer(
   pool: Pool,
   port: number,
-  state?: { lastProcessedLedger: string },
+  state?: { lastProcessedLedger: string; indexerActive?: boolean },
 ): void {
   const app = express();
   app.use(express.json());
   app.use(pinoHttp({ logger }));
+
+  // Enable CORS support for frontend consumption (#1549)
+  const allowedOrigin = process.env.CORS_ORIGIN || "*";
+  app.use(
+    cors({
+      origin: allowedOrigin === "*" ? "*" : allowedOrigin.split(",").map((o) => o.trim()),
+      methods: ["GET", "POST", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization"],
+    }),
+  );
 
   // #1039: rate limiting on the query API — exempt /health and /metrics so
   // liveness/monitoring probes are never throttled.
@@ -42,7 +105,7 @@ export function startApiServer(
         timestamp: new Date().toISOString(),
         lastProcessedLedger,
         latestStoredLedger: latestStoredLedger ? Number(latestStoredLedger) : null,
-        indexerActive: true,
+        indexerActive: state?.indexerActive ?? false,
       });
     } catch (err: any) {
       res.status(500).json({
@@ -78,14 +141,19 @@ export function startApiServer(
         after_ledger,
         before_ledger,
       } = req.query;
+      const parsedLimit = parsePagination(limit, 50, 500);
+      const parsedOffset = parsePagination(offset, 0, Number.MAX_SAFE_INTEGER);
+      if (parsedLimit === null || parsedOffset === null) {
+        return res.status(400).json({ error: "limit must be an integer from 0 to 500 and offset must be a non-negative integer" });
+      }
 
       const events = await getEvents(pool, {
         contractId: contract_id as string | undefined,
         contractType: contract_type as string | undefined,
         eventType: event_type as string | undefined,
         actorAddress: actor_address as string | undefined,
-        limit: parseInt(limit as string, 10),
-        offset: parseInt(offset as string, 10),
+        limit: parseBoundedInteger(limit, 50, MAX_PAGE_SIZE, "limit"),
+        offset: parseBoundedInteger(offset, 0, MAX_OFFSET, "offset"),
         afterLedger:
           typeof after_ledger === "string" ? parseInt(after_ledger, 10) : undefined,
         beforeLedger:
@@ -94,7 +162,7 @@ export function startApiServer(
 
       res.json({ events, count: events.length });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(err instanceof RangeError ? 400 : 500).json({ error: err.message });
     }
   });
 
@@ -103,16 +171,21 @@ export function startApiServer(
     try {
       const { actorAddress } = req.params;
       const { limit = "50", offset = "0" } = req.query;
+      const parsedLimit = parsePagination(limit, 50, 500);
+      const parsedOffset = parsePagination(offset, 0, Number.MAX_SAFE_INTEGER);
+      if (parsedLimit === null || parsedOffset === null) {
+        return res.status(400).json({ error: "invalid limit or offset" });
+      }
 
       const events = await getEvents(pool, {
         actorAddress,
-        limit: parseInt(limit as string, 10),
-        offset: parseInt(offset as string, 10),
+        limit: parseBoundedInteger(limit, 50, MAX_PAGE_SIZE, "limit"),
+        offset: parseBoundedInteger(offset, 0, MAX_OFFSET, "offset"),
       });
 
       res.json({ actorAddress, events, count: events.length });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(err instanceof RangeError ? 400 : 500).json({ error: err.message });
     }
   });
 
@@ -121,16 +194,21 @@ export function startApiServer(
     try {
       const { contractId } = req.params;
       const { limit = "50", offset = "0" } = req.query;
+      const parsedLimit = parsePagination(limit, 50, 500);
+      const parsedOffset = parsePagination(offset, 0, Number.MAX_SAFE_INTEGER);
+      if (parsedLimit === null || parsedOffset === null) {
+        return res.status(400).json({ error: "invalid limit or offset" });
+      }
 
       const events = await getEvents(pool, {
         contractId,
-        limit: parseInt(limit as string, 10),
-        offset: parseInt(offset as string, 10),
+        limit: parseBoundedInteger(limit, 50, MAX_PAGE_SIZE, "limit"),
+        offset: parseBoundedInteger(offset, 0, MAX_OFFSET, "offset"),
       });
 
       res.json({ contractId, events, count: events.length });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(err instanceof RangeError ? 400 : 500).json({ error: err.message });
     }
   });
 
@@ -139,16 +217,59 @@ export function startApiServer(
     try {
       const { eventType } = req.params;
       const { limit = "50", offset = "0" } = req.query;
+      const parsedLimit = parsePagination(limit, 50, 500);
+      const parsedOffset = parsePagination(offset, 0, Number.MAX_SAFE_INTEGER);
+      if (parsedLimit === null || parsedOffset === null) {
+        return res.status(400).json({ error: "invalid limit or offset" });
+      }
 
       const events = await getEvents(pool, {
         eventType,
-        limit: parseInt(limit as string, 10),
-        offset: parseInt(offset as string, 10),
+        limit: parseBoundedInteger(limit, 50, MAX_PAGE_SIZE, "limit"),
+        offset: parseBoundedInteger(offset, 0, MAX_OFFSET, "offset"),
       });
 
       res.json({ eventType, events, count: events.length });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(err instanceof RangeError ? 400 : 500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/invoices/search", async (req, res) => {
+    try {
+      const query = typeof req.query.q === "string" ? req.query.q.trim().toLowerCase() : "";
+      const status = typeof req.query.status === "string" ? req.query.status.toLowerCase() : "";
+      const page = Math.max(0, Number.parseInt(String(req.query.page ?? "0"), 10) || 0);
+      const pageSize = Math.min(
+        100,
+        Math.max(1, Number.parseInt(String(req.query.pageSize ?? "20"), 10) || 20),
+      );
+      const events = await getAllEvents(pool, { contractType: "invoice" });
+      const invoicesById = new Map<string, { latest: IndexedEvent; searchable: string }>();
+
+      for (const event of events) {
+        const invoiceId = extractInvoiceId(event.value);
+        if (invoiceId === null) continue;
+        const existing = invoicesById.get(invoiceId);
+        invoicesById.set(invoiceId, {
+          latest: existing?.latest ?? event,
+          searchable: `${existing?.searchable ?? ""} ${JSON.stringify(event.value)}`.toLowerCase(),
+        });
+      }
+
+      const matches = Array.from(invoicesById.entries())
+        .filter(([invoiceId, invoice]) => {
+          const matchesQuery = !query || invoiceId.includes(query) || invoice.searchable.includes(query);
+          const matchesStatus = !status || invoice.latest.eventType.toLowerCase() === status || invoice.searchable.includes(status);
+          return matchesQuery && matchesStatus;
+        })
+        .sort(([, left], [, right]) => right.latest.ledgerSequence - left.latest.ledgerSequence);
+      const start = page * pageSize;
+      const results = matches.slice(start, start + pageSize).map(([invoiceId]) => Number(invoiceId));
+
+      return res.json({ invoiceIds: results, page, pageSize, total: matches.length });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
     }
   });
 
@@ -250,10 +371,8 @@ export function startApiServer(
 
   app.get("/co-funding/rounds", async (_req, res) => {
     try {
-      const events = await getEvents(pool, {
+      const events = await getAllEvents(pool, {
         contractType: "pool",
-        limit: 2000,
-        offset: 0,
       });
       const invoiceIds = new Set<string>();
       for (const evt of events) {
@@ -276,10 +395,8 @@ export function startApiServer(
           .json({ error: "invoiceId path param is required" });
       }
 
-      const events = await getEvents(pool, {
+      const events = await getAllEvents(pool, {
         contractType: "pool",
-        limit: 2000,
-        offset: 0,
       });
       const matches = events
         .filter(
@@ -347,11 +464,9 @@ export function startApiServer(
       }
       const addressLower = address.toLowerCase();
 
-      const events = await getEvents(pool, {
+      const events = await getAllEvents(pool, {
         contractType: "pool",
         eventType: "cf_commit",
-        limit: 2000,
-        offset: 0,
       });
 
       const invoiceIds = new Set<string>();
@@ -383,10 +498,8 @@ export function startApiServer(
 
   app.get("/secondary-market/listings/open", async (_req, res) => {
     try {
-      const events = await getEvents(pool, {
+      const events = await getAllEvents(pool, {
         contractType: "pool",
-        limit: 2000,
-        offset: 0,
       });
 
       const opened = new Set<string>();
@@ -420,11 +533,9 @@ export function startApiServer(
       }
       const addressLower = address.toLowerCase();
 
-      const events = await getEvents(pool, {
+      const events = await getAllEvents(pool, {
         contractType: "pool",
         eventType: "lst_open",
-        limit: 2000,
-        offset: 0,
       });
 
       const listingIds = new Set<string>();
@@ -455,10 +566,8 @@ export function startApiServer(
 
   app.get("/secondary-market/orders/open", async (_req, res) => {
     try {
-      const events = await getEvents(pool, {
+      const events = await getAllEvents(pool, {
         contractType: "pool",
-        limit: 2000,
-        offset: 0,
       });
 
       const opened = new Set<string>();
@@ -543,10 +652,8 @@ export function startApiServer(
           .json({ error: "invoiceId path param is required" });
       }
 
-      const events = await getEvents(pool, {
+      const events = await getAllEvents(pool, {
         contractType: "oracle_registry",
-        limit: 1000,
-        offset: 0,
       });
 
       const matches = events
@@ -611,10 +718,8 @@ export function startApiServer(
       }
       const smeLower = sme.toLowerCase();
 
-      const events = await getEvents(pool, {
+      const events = await getAllEvents(pool, {
         contractType: "credit_score",
-        limit: 5000,
-        offset: 0,
       });
 
       const attestationIds = new Set<string>();
@@ -743,11 +848,9 @@ export function startApiServer(
           .json({ error: "from/to must be unix timestamps in seconds" });
       }
 
-      const events = await getEvents(pool, {
+      const events = await getAllEvents(pool, {
         contractType: "pool",
         eventType: "rate_snap",
-        limit: 10_000,
-        offset: 0,
       });
 
       const samples = events
@@ -779,10 +882,12 @@ export function startApiServer(
   app.get("/compliance/flagged", async (req, res) => {
     try {
       const { limit = "100" } = req.query;
+      const parsedLimit = parsePagination(limit, 100, 500);
+      if (parsedLimit === null) return res.status(400).json({ error: "invalid limit" });
       const events = await getEvents(pool, {
         contractType: "compliance",
         eventType: "screened",
-        limit: parseInt(limit as string, 10),
+        limit: parseBoundedInteger(limit, 100, MAX_PAGE_SIZE, "limit"),
         offset: 0,
       });
       const latest = new Map<
@@ -814,7 +919,7 @@ export function startApiServer(
       }
       res.json({ flagged: Array.from(latest.values()) });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(err instanceof RangeError ? 400 : 500).json({ error: err.message });
     }
   });
 
@@ -823,9 +928,11 @@ export function startApiServer(
     try {
       const { address } = req.params;
       const { limit = "100" } = req.query;
+      const parsedLimit = parsePagination(limit, 100, 500);
+      if (parsedLimit === null) return res.status(400).json({ error: "invalid limit" });
       const events = await getEvents(pool, {
         contractType: "compliance",
-        limit: parseInt(limit as string, 10),
+        limit: parseBoundedInteger(limit, 100, MAX_PAGE_SIZE, "limit"),
         offset: 0,
       });
       const history = events
@@ -843,7 +950,7 @@ export function startApiServer(
         }));
       res.json({ address, history });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(err instanceof RangeError ? 400 : 500).json({ error: err.message });
     }
   });
 

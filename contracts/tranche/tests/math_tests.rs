@@ -16,6 +16,7 @@ fn test_waterfall_split_senior_cap() {
         total_due,
         senior_principal,
         senior_target_yield_bps,
+        10_000,
         elapsed_secs,
     );
 
@@ -37,6 +38,7 @@ fn test_waterfall_split_partial_payment() {
         total_due,
         senior_principal,
         senior_target_yield_bps,
+        10_000,
         elapsed_secs,
     );
 
@@ -58,6 +60,7 @@ fn test_waterfall_split_exact_cap() {
         total_due,
         senior_principal,
         senior_target_yield_bps,
+        10_000,
         elapsed_secs,
     );
 
@@ -79,6 +82,7 @@ fn test_waterfall_split_zero_yield() {
         total_due,
         senior_principal,
         senior_target_yield_bps,
+        10_000,
         elapsed_secs,
     );
 
@@ -100,12 +104,13 @@ fn test_waterfall_split_time_proportional() {
         total_due,
         senior_principal,
         senior_target_yield_bps,
+        10_000,
         elapsed_secs,
     );
 
     // Senior cap should be 1000 + 50 (half of 100) = 1050 (allow for rounding)
-    assert!(senior_amount >= 1049 && senior_amount <= 1051);
-    assert!(junior_amount >= 449 && junior_amount <= 451);
+    assert!((1049..=1051).contains(&senior_amount));
+    assert!((449..=451).contains(&junior_amount));
 }
 
 #[test]
@@ -123,6 +128,7 @@ fn test_waterfall_split_monotonic_senior() {
             total_due,
             senior_principal,
             senior_target_yield_bps,
+            10_000,
             elapsed_secs,
         );
         assert!(
@@ -141,12 +147,13 @@ fn test_waterfall_split_sum_equals_total() {
     let senior_target_yield_bps = 1000;
     let elapsed_secs = 365 * 24 * 60 * 60;
 
-    for total_due in vec![0, 500, 1000, 1100, 1500, 2000] {
+    for total_due in [0, 500, 1000, 1100, 1500, 2000] {
         let (senior_amount, junior_amount) = calculate_waterfall_split(
             &env,
             total_due,
             senior_principal,
             senior_target_yield_bps,
+            10_000,
             elapsed_secs,
         );
         assert_eq!(
@@ -162,7 +169,7 @@ fn test_loss_allocation_junior_absorbs_all() {
     let shortfall = 100;
     let junior_remaining = 200;
 
-    let (junior_loss, senior_loss) = calculate_loss_allocation(shortfall, junior_remaining);
+    let (junior_loss, senior_loss) = calculate_loss_allocation(shortfall, junior_remaining, 10_000);
 
     assert_eq!(junior_loss, 100);
     assert_eq!(senior_loss, 0);
@@ -173,7 +180,7 @@ fn test_loss_allocation_junior_exhausted() {
     let shortfall = 300;
     let junior_remaining = 100;
 
-    let (junior_loss, senior_loss) = calculate_loss_allocation(shortfall, junior_remaining);
+    let (junior_loss, senior_loss) = calculate_loss_allocation(shortfall, junior_remaining, 10_000);
 
     assert_eq!(junior_loss, 100); // Junior wiped out
     assert_eq!(senior_loss, 200); // Senior takes remainder
@@ -184,7 +191,7 @@ fn test_loss_allocation_exact_shortfall() {
     let shortfall = 100;
     let junior_remaining = 100;
 
-    let (junior_loss, senior_loss) = calculate_loss_allocation(shortfall, junior_remaining);
+    let (junior_loss, senior_loss) = calculate_loss_allocation(shortfall, junior_remaining, 10_000);
 
     assert_eq!(junior_loss, 100);
     assert_eq!(senior_loss, 0);
@@ -195,7 +202,7 @@ fn test_loss_allocation_zero_junior_balance() {
     let shortfall = 100;
     let junior_remaining = 0;
 
-    let (junior_loss, senior_loss) = calculate_loss_allocation(shortfall, junior_remaining);
+    let (junior_loss, senior_loss) = calculate_loss_allocation(shortfall, junior_remaining, 10_000);
 
     assert_eq!(junior_loss, 0);
     assert_eq!(senior_loss, 100);
@@ -206,7 +213,7 @@ fn test_loss_allocation_zero_shortfall() {
     let shortfall = 0;
     let junior_remaining = 100;
 
-    let (junior_loss, senior_loss) = calculate_loss_allocation(shortfall, junior_remaining);
+    let (junior_loss, senior_loss) = calculate_loss_allocation(shortfall, junior_remaining, 10_000);
 
     assert_eq!(junior_loss, 0);
     assert_eq!(senior_loss, 0);
@@ -214,9 +221,9 @@ fn test_loss_allocation_zero_shortfall() {
 
 #[test]
 fn test_loss_allocation_sum_equals_shortfall() {
-    for shortfall in vec![0, 50, 100, 200, 500] {
-        for junior_remaining in vec![0, 50, 100, 200, 500] {
-            let (junior_loss, senior_loss) = calculate_loss_allocation(shortfall, junior_remaining);
+    for shortfall in [0, 50, 100, 200, 500] {
+        for junior_remaining in [0, 50, 100, 200, 500] {
+            let (junior_loss, senior_loss) = calculate_loss_allocation(shortfall, junior_remaining, 10_000);
             assert_eq!(
                 junior_loss + senior_loss,
                 shortfall,
@@ -224,4 +231,15 @@ fn test_loss_allocation_sum_equals_shortfall() {
             );
         }
     }
+}
+
+#[test]
+fn test_loss_allocation_junior_first_loss_bps_capped() {
+    let shortfall = 150;
+    let junior_remaining = 200;
+    // Junior first loss bps set to 50% (5000 bps) -> max junior loss = 100
+    let (junior_loss, senior_loss) = calculate_loss_allocation(shortfall, junior_remaining, 5000);
+
+    assert_eq!(junior_loss, 100);
+    assert_eq!(senior_loss, 50);
 }

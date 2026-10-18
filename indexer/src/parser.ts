@@ -14,6 +14,12 @@ export type ContractType =
   | 'oracle_registry'
   | 'compliance'
   | 'tranche'
+  | 'insurance'
+  | 'access_control'
+  | 'arbitration'
+  | 'governance'
+  | 'referral'
+  | 'share'
   | 'unknown';
 
 export interface IndexedEvent {
@@ -48,6 +54,13 @@ const TRANCHE_CONTRACT_ID = (process.env.TRANCHE_CONTRACT_ID || '').trim();
 // wasm deploy limit. Emits under its own "auction" topic — see
 // AUCTION_EVENT_TYPES below.
 const AUCTION_CONTRACT_ID = (process.env.AUCTION_CONTRACT_ID || '').trim();
+// #1055: default-insurance reserve — coverage purchase, claims, reserve health
+const INSURANCE_CONTRACT_ID = (process.env.INSURANCE_CONTRACT_ID || '').trim();
+const ACCESS_CONTROL_CONTRACT_ID = (process.env.ACCESS_CONTROL_CONTRACT_ID || '').trim();
+const ARBITRATION_CONTRACT_ID = (process.env.ARBITRATION_CONTRACT_ID || '').trim();
+const GOVERNANCE_CONTRACT_ID = (process.env.GOVERNANCE_CONTRACT_ID || '').trim();
+const REFERRAL_CONTRACT_ID = (process.env.REFERRAL_CONTRACT_ID || '').trim();
+const SHARE_CONTRACT_ID = (process.env.SHARE_CONTRACT_ID || '').trim();
 
 // #861: oracle_registry contract emits these event subtypes under the
 // "ORACLE" topic (see `EVT` in contracts/oracle_registry/src/lib.rs).
@@ -120,6 +133,19 @@ const TRANCHE_EVENT_TYPES = new Set([
   'config',
 ]);
 
+// #1055: insurance contract emits these event subtypes under the "INSURNCE" topic
+const INSURANCE_EVENT_TYPES = new Set([
+  'init',
+  'cfg_set',
+  'mcr_set',
+  'funded',
+  'paused',
+  'unpaused',
+  'covered',
+  'claimed',
+  'min_rsv',
+]);
+
 // #700: credit_score contract emits these event subtypes under the "CREDIT" topic
 const CREDIT_SCORE_EVENT_TYPES = new Set([
   'payment',
@@ -166,10 +192,19 @@ function classifyContract(contractId: string, contractType: string, eventType: s
   if (AUCTION_CONTRACT_ID && contractId === AUCTION_CONTRACT_ID) {
     return 'pool';
   }
+  if (INSURANCE_CONTRACT_ID && contractId === INSURANCE_CONTRACT_ID) {
+    return 'insurance';
+  }
+  if (ACCESS_CONTROL_CONTRACT_ID && contractId === ACCESS_CONTROL_CONTRACT_ID) return 'access_control';
+  if (ARBITRATION_CONTRACT_ID && contractId === ARBITRATION_CONTRACT_ID) return 'arbitration';
+  if (GOVERNANCE_CONTRACT_ID && contractId === GOVERNANCE_CONTRACT_ID) return 'governance';
+  if (REFERRAL_CONTRACT_ID && contractId === REFERRAL_CONTRACT_ID) return 'referral';
+  if (SHARE_CONTRACT_ID && contractId === SHARE_CONTRACT_ID) return 'share';
   // Fallback: infer from topic. credit_score events publish under "CREDIT",
   // oracle_registry events publish under "ORACLE" (#861),
   // compliance events publish under "COMPLY" (#867),
-  // tranche events publish under "TRANCHE" (#862).
+  // tranche events publish under "TRANCHE" (#862),
+  // insurance events publish under "INSURNCE" (#1055).
   if (contractType === 'CREDIT' || CREDIT_SCORE_EVENT_TYPES.has(eventType)) {
     return 'credit_score';
   }
@@ -182,6 +217,14 @@ function classifyContract(contractId: string, contractType: string, eventType: s
   if (contractType === 'TRANCHE' || TRANCHE_EVENT_TYPES.has(eventType)) {
     return 'tranche';
   }
+  if (contractType === 'INSURNCE' || INSURANCE_EVENT_TYPES.has(eventType)) {
+    return 'insurance';
+  }
+  if (contractType.toLowerCase() === 'access_control') return 'access_control';
+  if (contractType.toLowerCase() === 'arbitration') return 'arbitration';
+  if (contractType.toLowerCase() === 'governance') return 'governance';
+  if (contractType.toLowerCase() === 'referral') return 'referral';
+  if (contractType.toLowerCase() === 'share') return 'share';
   if (contractType === 'invoice') return 'invoice';
   if (contractType === 'pool') return 'pool';
   if (SECONDARY_MARKET_EVENT_TYPES.has(eventType)) return 'pool';
@@ -380,25 +423,44 @@ function extractActor(contractType: string, eventType: string, value: any): stri
           if (isStellarAddress(value[0])) return value[0];
           break;
       }
+    } else if (contractType === 'INSURNCE') {
+      // #1055: insurance publishes under its own "INSURNCE" topic — see `EVT`
+      // in contracts/insurance/src/lib.rs.
+      switch (eventType) {
+        // (invoice_id, payer, premium, coverage_bps) — payer is value[1]
+        case 'covered':
+          if (isStellarAddress(value[1])) return value[1];
+          break;
+        // (admin, token, amount|min_ratio_bps|min_amount) — admin is value[0]
+        case 'funded':
+        case 'mcr_set':
+        case 'min_rsv':
+          if (isStellarAddress(value[0])) return value[0];
+          break;
+        // (invoice_id, payout) — no actor address in the payload
+        case 'claimed':
+          return null;
+      }
+    }
+
+    // Tranche events have a typed actor position. Resolve them before the
+    // generic scan so the token address cannot be mistaken for the actor.
+    if (contractType === 'TRANCHE') {
+      switch (eventType) {
+        case 'deposit':
+        case 'withdraw':
+        case 'fund':
+        case 'repay':
+        case 'default':
+          return isStellarAddress(value[0]) ? value[0] : null;
+        case 'config':
+          return isStellarAddress(value[0]) ? value[0] : null;
+      }
     }
 
     // Fallback: scan array elements for a valid Stellar address
     for (const item of value) {
       if (isStellarAddress(item)) return item;
-    }
-  }
-
-  // Tranche events: first field is usually the actor
-  if (contractType === 'TRANCHE') {
-    switch (eventType) {
-      case 'deposit':
-      case 'withdraw':
-      case 'fund':
-      case 'repay':
-      case 'default':
-        return value[0]; // investor or caller
-      case 'config':
-        return value[0]; // admin
     }
   }
 

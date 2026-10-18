@@ -177,6 +177,18 @@ export interface Listing {
 export type OrderSide = 'Bid' | 'Ask';
 export type OrderStatus = 'Open' | 'PartiallyFilled' | 'Filled' | 'Cancelled' | 'Expired';
 
+/**
+ * One resting order in an order book's depth view (#1133) — lets callers
+ * render a real book without a follow-up `getOrder` call per id.
+ */
+export interface OrderBookLevel {
+  orderId: bigint;
+  /** Per-unit price, scaled by 1e7 (`PRICE_SCALE` on-chain). */
+  price: bigint;
+  /** Remaining quantity: bps of CoFundShare (CoFunding) or raw token amount (SingleFunded). */
+  quantity: bigint;
+}
+
 export interface Order {
   orderId: bigint;
   invoiceId: bigint;
@@ -232,6 +244,8 @@ export interface AsteraConfig {
   trancheContractId?: string;
   /** #864: role-based multisig access-control contract, if deployed. */
   accessControlContractId?: string;
+  /** #1055: default-insurance reserve contract, if deployed. */
+  insuranceContractId?: string;
 }
 
 // ─── #864: role-based multisig access control ──────────────────────────────

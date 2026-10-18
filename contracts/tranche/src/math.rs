@@ -5,13 +5,16 @@ pub fn calculate_waterfall_split(
     total_due: i128,
     senior_principal: i128,
     senior_target_yield_bps: u32,
+    _junior_first_loss_bps: u32,
     elapsed_secs: u64,
 ) -> (i128, i128) {
     let yearly = 365u64 * 24 * 60 * 60;
 
-    let interest = senior_principal * senior_target_yield_bps as i128 * elapsed_secs as i128
-        / 10_000
-        / yearly as i128;
+    let interest = (senior_principal as u128)
+        .saturating_mul(senior_target_yield_bps as u128)
+        .saturating_mul(elapsed_secs as u128)
+        .saturating_div(10_000)
+        .saturating_div(yearly as u128) as i128;
 
     let senior_cap = senior_principal + interest;
 
@@ -26,10 +29,34 @@ pub fn calculate_waterfall_split(
     (senior_amount, junior_amount)
 }
 
-pub fn calculate_loss_allocation(shortfall: i128, junior_remaining: i128) -> (i128, i128) {
-    if shortfall <= junior_remaining {
+pub fn calculate_loss_allocation(
+    shortfall: i128,
+    junior_remaining: i128,
+    junior_first_loss_bps: u32,
+) -> (i128, i128) {
+    let max_junior_loss = (junior_remaining as u128)
+        .saturating_mul(junior_first_loss_bps as u128)
+        .saturating_div(10_000) as i128;
+
+    if shortfall <= max_junior_loss {
         (shortfall, 0)
     } else {
-        (junior_remaining, shortfall - junior_remaining)
+        (max_junior_loss, shortfall - max_junior_loss)
     }
+}
+
+pub fn calculate_shares_to_mint(
+    amount: i128,
+    pool_value: i128,
+    total_shares: i128,
+) -> i128 {
+    if total_shares == 0 || pool_value == 0 {
+        return amount;
+    }
+    if pool_value <= 0 {
+        return amount;
+    }
+    (amount as u128)
+        .saturating_mul(total_shares as u128)
+        .saturating_div(pool_value as u128) as i128
 }

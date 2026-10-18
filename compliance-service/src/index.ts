@@ -6,10 +6,12 @@
  */
 
 import * as http from 'http';
+import * as crypto from 'crypto';
 import * as dotenv from 'dotenv';
 import { Keypair, TransactionBuilder, BASE_FEE, Contract, rpc as StellarRpc, Address, nativeToScVal, xdr } from '@stellar/stellar-sdk';
 import { MockScreener, HttpScreenerProvider, ScreenerProvider } from './screener';
 import { Monitor } from './monitor';
+import { validateScreenOverride, type ScreenRequestBody } from './validation';
 import type { ComplianceConfig, RiskTier, ScreenDecision } from './types';
 
 dotenv.config();
@@ -47,8 +49,31 @@ function requireAdmin(req: http.IncomingMessage): boolean {
   const header = req.headers['x-admin-token'] || req.headers['authorization'];
   if (!header) return false;
   const value = Array.isArray(header) ? header[0] : header;
-  if (value === config.adminToken) return true;
-  if (value.startsWith('Bearer ') && value.slice(7) === config.adminToken) return true;
+
+  const tokenBuffer = Buffer.from(config.adminToken);
+  const valueBuffer = Buffer.from(value);
+
+  if (valueBuffer.length === tokenBuffer.length) {
+    try {
+      if (crypto.timingSafeEqual(valueBuffer, tokenBuffer)) return true;
+    } catch {
+      // Buffer length mismatch or other error
+    }
+  }
+
+  if (value.startsWith('Bearer ')) {
+    const bearerToken = value.slice(7);
+    const bearerBuffer = Buffer.from(bearerToken);
+    const tokenBuffer2 = Buffer.from(config.adminToken);
+    if (bearerBuffer.length === tokenBuffer2.length) {
+      try {
+        if (crypto.timingSafeEqual(bearerBuffer, tokenBuffer2)) return true;
+      } catch {
+        // Buffer length mismatch or other error
+      }
+    }
+  }
+
   return false;
 }
 
@@ -161,17 +186,12 @@ async function main() {
       if (req.method === 'POST' && path === '/screen') {
         if (!requireAdmin(req)) return json(401, { error: 'unauthorized' });
         const raw = await readBody(req);
-        const body = JSON.parse(raw || '{}') as {
-          address?: string;
-          name?: string;
-          jurisdiction?: string;
-          submitOnChain?: boolean;
-          status?: ScreenDecision;
-          reasonCode?: number;
-          riskTier?: RiskTier;
-          notesHash?: string;
-        };
+        const body = JSON.parse(raw || '{}') as ScreenRequestBody;
         if (!body.address) return json(400, { error: 'address required' });
+        // #1556: reject override values outside the contract's enums before
+        // they can be encoded as symbols and submitted on-chain.
+        const validationError = validateScreenOverride(body as Record<string, unknown>);
+        if (validationError) return json(400, { error: validationError });
 
         // If operator supplies an explicit decision, use it; else run mock screener.
         let result = await screener.screen(body.address, {

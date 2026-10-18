@@ -131,3 +131,162 @@ const myListings = await pool.listListingsForInvestor(sellerAddress);
 | `lst_open` | `(listing_id, invoice_id, seller, amount_or_bps, price)` | New listing created |
 | `lst_cncl` | `(listing_id, invoice_id, seller)` | Listing cancelled by seller |
 | `lst_buy`  | `(listing_id, invoice_id, seller, buyer, price)` | Listing filled by buyer |
+
+## Invoice Contract
+
+Manages invoice lifecycle from creation through repayment or default. Invoices can be funded by multiple co-investors and track repayment schedules with grace periods.
+
+### Entrypoints
+
+- `create_invoice(creator, due_date, amount)` — Create a new invoice
+- `deploy_capital(investor, invoice_id, amount)` — Deploy capital into an invoice
+- `repay_invoice(repayer, invoice_id, amount)` — Repay an invoice
+- `mark_defaulted(keeper, invoice_id)` — Mark invoice as defaulted
+- `get_invoice(id)` — Retrieve invoice by ID
+- `get_invoice_count()` — Get total number of invoices
+- `get_grace_period()` — Get default grace period in days
+
+## Pool Contract
+
+The main contract managing pool operations, investor positions, and capital deployment across multiple invoices and tokens.
+
+### Entrypoints
+
+- `initialize(admin, token, share_token, invoice_contract)` — Initialize the pool with a primary stablecoin and share token
+- `deposit(investor, token, amount)` — Deposit stablecoin, receive share tokens proportionally
+- `withdraw(investor, token, shares)` — Burn share tokens and withdraw stablecoin
+- `request_withdrawal(investor, token, shares)` — Queue a withdrawal when liquidity is insufficient
+- `cancel_withdrawal_request(investor, token, request_id)` — Cancel a queued withdrawal request
+- `fund_invoice(admin, invoice_id, amount, sme, due_date, token)` — Deploy capital to fund an invoice
+- `repay_invoice(invoice_id, payer, amount)` — Accept a repayment (partial or full) for a funded invoice
+- `estimate_repayment(invoice_id)` — View the current amount owed including accrued interest
+- `claim_yield(investor, token)` — Claim accrued yield for an investor's token position
+- `get_token_totals(token)` — Get pool value, deployed amount, and fee totals for a token
+- `get_funded_invoice(invoice_id)` — Retrieve a funded invoice record
+- `available_liquidity(token)` — Get uninvested token balance available for new invoices
+- `accepted_tokens()` — List all accepted stablecoin addresses
+- `add_token(admin, token, share_token)` — Add a new accepted stablecoin with its share token
+- `remove_token(admin, token)` — Remove a token when balances are zero
+- `get_config()` — Retrieve pool configuration (fees, yield, rate model settings)
+- `set_factoring_fee(admin, fee_bps)` — Update the factoring fee in basis points
+- `get_storage_stats()` — Get funded invoice counts and totals
+
+## Tranche Contract
+
+Divides pool positions into tranches with different seniority levels and risk profiles.
+
+### Entrypoints
+
+- `create_tranche(pool_id, name, seniority_level)` — Create a new tranche
+- `deploy_to_tranche(investor, tranche_id, amount)` — Deploy capital into a tranche
+- `get_tranche(tranche_id)` — Retrieve tranche details
+- `distribute_returns(invoice_id, amount)` — Distribute repayment pro-rata by tranche seniority
+
+## Arbitration Contract
+
+Handles dispute resolution between parties (borrowers, investors, or the pool).
+
+### Entrypoints
+
+- `raise_dispute(initiator, dispute_type, details)` — Initiate a dispute
+- `submit_evidence(juror, dispute_id, evidence)` — Submit evidence for a dispute
+- `vote(juror, dispute_id, verdict)` — Cast a vote on a dispute outcome
+- `finalize_dispute(dispute_id)` — Finalize dispute and execute verdict
+- `get_dispute(dispute_id)` — Retrieve dispute details
+
+## Auction Contract
+
+Enables reverse auctions for invoice pricing and settlement matching between borrowers and investors.
+
+### Entrypoints
+
+- `create_auction(invoice_id, target_amount, duration_secs)` — Create a new auction
+- `place_bid(bidder, auction_id, rate)` — Submit a bid rate
+- `settle_auction(auction_id)` — Settle auction and commit winning rate
+- `get_auction(auction_id)` — Retrieve auction details
+
+## Access Control Contract
+
+Manages role-based permissions across the platform (admin, borrower, investor, etc.).
+
+### Entrypoints
+
+- `set_role(admin, subject, role)` — Assign a role to an address
+- `check_role(subject, role)` — Verify if subject has a role
+- `revoke_role(admin, subject, role)` — Remove a role from an address
+- `has_admin_role(subject)` — Check admin status
+
+## Compliance Contract
+
+Performs sanctions screening and risk assessment on addresses and transactions.
+
+### Entrypoints
+
+- `screen_address(address, name, jurisdiction)` — Screen an address for sanctions and risk
+- `submit_screening_result(screener, address, status, reason_code, risk_tier, expires_at, notes)` — Submit screening decision
+- `get_screening_result(address)` — Retrieve latest screening result for an address
+- `get_risk_tier(address)` — Get current risk tier
+- `update_structuring_check(address, amount)` — Track structuring-check violations
+
+## Insurance Contract
+
+Provides default insurance for invoices, protecting investors against borrower default.
+
+### Entrypoints
+
+- `create_insurance_pool()` — Initialize insurance pool
+- `deposit_premium(investor, invoice_id, amount)` — Deposit insurance premium
+- `claim_payout(investor, invoice_id)` — Claim insurance payout on default
+- `get_insurance_pool()` — Retrieve pool details
+
+## Oracle Registry Contract
+
+Manages oracle providers and price feeds for the platform.
+
+### Entrypoints
+
+- `register_oracle(oracle_address, asset_pair)` — Register an oracle provider
+- `submit_price_feed(oracle, asset_pair, price, timestamp)` — Submit price data
+- `get_price(asset_pair)` — Retrieve latest price for an asset pair
+- `list_oracles()` — List all registered oracles
+
+## Governance Contract
+
+Enables governance proposals and voting on protocol changes.
+
+### Entrypoints
+
+- `submit_proposal(proposer, description, target_contract, action)` — Submit a proposal
+- `vote_on_proposal(voter, proposal_id, vote)` — Vote on a proposal
+- `execute_proposal(proposal_id)` — Execute an approved proposal
+- `get_proposal(proposal_id)` — Retrieve proposal details
+
+## Referral Contract
+
+Tracks and rewards referrals for borrowers and investors joining the platform.
+
+### Entrypoints
+
+- `register_referral(referrer, referee)` — Register a referral relationship
+- `claim_referral_reward(referrer)` — Claim accrued referral rewards
+- `get_referral_stats(address)` — Get referral count and reward balance
+- `get_referral_rate()` — Get current referral reward rate
+
+## Share Contract
+
+A flat SEP-41-style fungible token contract representing pool deposit shares. There is no `invoice_id` parameter — balances are tracked per address only.
+
+### Entrypoints
+
+- `initialize(admin, decimals, name, symbol)` — Initialize the token with metadata
+- `mint(to, amount)` — Mint shares to an address (admin only)
+- `burn(from, amount)` — Burn shares from an address (admin only)
+- `transfer(from, to, amount)` — Transfer shares between addresses
+- `transfer_from(spender, from, to, amount)` — Transfer using an approved allowance
+- `approve(owner, spender, amount)` — Set a spending allowance
+- `allowance(owner, spender)` — Read current allowance
+- `balance(id)` — Get share balance of an address
+- `total_supply()` — Get total outstanding share supply
+- `decimals()` — Get token decimal places
+- `name()` — Get token name
+- `symbol()` — Get token symbol

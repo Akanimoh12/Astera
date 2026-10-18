@@ -77,6 +77,12 @@
       "disconnectedTitle": "Portefeuille déconnecté",
       "disconnectedDescription": "Votre portefeuille Freighter n'est plus connecté à ce site. Reconnectez-vous pour continuer."
     },
+    "networkMismatch": {
+      "title": "Incompatibilité de réseau détectée",
+      "description": "Votre portefeuille Freighter est connecté à {walletNetwork}, mais cette application utilise {appNetwork}. Veuillez changer de réseau dans Freighter pour continuer.",
+      "switchNetworks": "Comment changer de réseau",
+      "dismiss": "Fermer l’avertissement d’incompatibilité de réseau"
+    },
     "toast": {
       "dismiss": "Fermer la notification"
     },
@@ -146,7 +152,9 @@
       "exchangeRates": "Taux de change",
       "aging": "Rapport d'ancienneté",
       "oracles": "Réseau d'oracles",
-      "attestors": "Attestateurs de crédit"
+      "attestors": "Attestateurs de crédit",
+      "insurance": "Assurance",
+      "governance": "Gouvernance"
     },
     "layout": {
       "accessDeniedTitle": "Identification d'administrateur requise",
@@ -323,6 +331,12 @@
       "adminNotConnected": "Portefeuille administrateur non connecté.",
       "approvedInvoice": "La facture #{id} a été approuvée pour le cofinancement.",
       "defaultedInvoice": "La facture #{id} a été marquée comme DÉFAILLANTE.",
+      "modalApproveTitle": "Approuver la facture #{id}",
+      "modalApproveDescription": "Approuver et financer la facture #{id} pour {amount}. Cela initiera le cofinancement depuis le pool de liquidité.",
+      "modalDisputeTitle": "Marquer la facture #{id} comme contestée",
+      "modalDisputeDescription": "Marquer la facture #{id} comme contestée. Cela mettra en pause toutes les activités de financement et signalera la facture pour examen manuel.",
+      "modalVerifyTitle": "Vérifier la facture #{id}",
+      "modalVerifyDescription": "Vérifier la facture #{id} comme authentique. Cela confirme les détails de la facture et permet le financement.",
       "unknownError": "Erreur inconnue",
       "approveFailed": "Échec de l'approbation de la facture."
     },
@@ -702,6 +716,51 @@
       "validIdRequired": "Entrez un ID d'attestation valide.",
       "lookupFailed": "Échec de la recherche d'attestation.",
       "transactionFailed": "Transaction échouée."
+    },
+    "governance": {
+      "title": "Propositions de gouvernance",
+      "description": "Créer, voter et exécuter des propositions de gouvernance pour les modifications des paramètres du protocole.",
+      "createProposal": "Créer une proposition",
+      "totalProposals": "Total des propositions",
+      "activeProposals": "Actives",
+      "passedProposals": "Adoptées",
+      "executedProposals": "Exécutées",
+      "proposals": "Propositions",
+      "loading": "Chargement des propositions...",
+      "noProposals": "Aucune proposition trouvée.",
+      "loadFailed": "Échec du chargement des propositions.",
+      "connectWallet": "Veuillez connecter votre portefeuille.",
+      "voteSuccess": "Vote enregistré avec succès.",
+      "voteFailed": "Échec de l'enregistrement du vote.",
+      "executeSuccess": "Proposition exécutée avec succès.",
+      "executeFailed": "Échec de l'exécution de la proposition.",
+      "statusActive": "Active",
+      "statusPassed": "Adoptée",
+      "statusRejected": "Rejetée",
+      "statusExecuted": "Exécutée",
+      "statusCancelled": "Annulée",
+      "statusExpired": "Expirée",
+      "categoryParameterChange": "Changement de paramètre",
+      "categoryTreasury": "Trésorerie",
+      "categoryCritical": "Critique",
+      "proposer": "Proposant",
+      "created": "Créée",
+      "target": "Cible",
+      "for": "Pour",
+      "against": "Contre",
+      "quorum": "Quorum",
+      "pass": "Adopter",
+      "voteFor": "Voter pour",
+      "voteAgainst": "Voter contre",
+      "execute": "Exécuter",
+      "createProposalTitle": "Créer une proposition de gouvernance",
+      "createProposalDesc": "La création de propositions sera implémentée une fois que le contrat de gouvernance sera déployé et configuré.",
+      "proposalCreationNotImplemented": "La création de propositions nécessite que le contrat de gouvernance soit déployé et configuré. Cette fonctionnalité sera disponible après le déploiement du contrat.",
+      "actionSetPoolYield": "Définir le rendement du pool à {value} bps",
+      "actionSetPoolTreasury": "Définir la trésorerie du pool à {address}",
+      "actionSetInvoiceGracePeriod": "Définir la période de grâce des factures à {days} jours",
+      "actionSetOracleRegistryInvoiceContract": "Définir le contrat de facture du registre d'oracles à {address}",
+      "actionSetComplianceRescreeningInterval": "Définir l'intervalle de re-filtrage de conformité à {secs} secondes"
     }
   }
 }

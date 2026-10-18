@@ -65,7 +65,7 @@ export default function AdminCompliancePage() {
   async function signAndSubmit(xdr: string) {
     const freighter = await import('@stellar/freighter-api');
     const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-      networkPassphrase: 'Test SDF Network ; September 2015',
+      networkPassphrase: NETWORK,
       address: wallet.address!,
     });
     if (signError) throw new Error(signError.message || 'Signing rejected.');

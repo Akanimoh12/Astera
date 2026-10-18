@@ -3,17 +3,16 @@
 // #1043: juror dashboard for the structured multi-party dispute arbitration
 // subsystem — stake/deregister as a juror, and commit/reveal votes on cases
 // this wallet was selected for. Modeled on app/admin/oracles/page.tsx's
-// structure (local fetch-on-mount state, a `signAndSubmit` XDR helper), but
-// deliberately kept to plain English strings rather than wired through
-// next-intl — the rest of this dashboard's translation keys are a separate,
-// mechanical follow-up, not part of #1043's scope.
+// structure (local fetch-on-mount state, a `signAndSubmit` XDR helper).
 
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import { useTranslations } from 'next-intl';
 import { useStore } from '@/lib/store';
 import { Skeleton } from '@/components/Skeleton';
 import { parseStellarAddress } from '@/lib/types';
 import type { JurorInfo, DisputeCase, JurorVoteStatus } from '@/lib/types';
+import { NETWORK } from '@/lib/stellar';
 import {
   getJurorInfo,
   getJurorCases,
@@ -39,11 +38,30 @@ function saltStorageKey(caseId: number, juror: string): string {
   return `astera:arbitration:salt:${caseId}:${juror}`;
 }
 
+function getStoredSalt(caseId: number, juror: string): string | null {
+  if (typeof window === 'undefined') return null;
+  return (
+    window.localStorage.getItem(saltStorageKey(caseId, juror)) ||
+    window.sessionStorage.getItem(saltStorageKey(caseId, juror))
+  );
+}
+
+function saveStoredSalt(caseId: number, juror: string, data: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(saltStorageKey(caseId, juror), data);
+  } catch {}
+  try {
+    window.sessionStorage.setItem(saltStorageKey(caseId, juror), data);
+  } catch {}
+}
+
 function formatStake(amount: bigint): string {
   return (Number(amount) / 10_000_000).toLocaleString();
 }
 
 export default function ArbitrationJurorsPage() {
+  const t = useTranslations('arbitration.jurors');
   const { wallet } = useStore();
   const [info, setInfo] = useState<JurorInfo | null>(null);
   const [cases, setCases] = useState<DisputeCase[]>([]);
@@ -89,7 +107,7 @@ export default function ArbitrationJurorsPage() {
   async function signAndSubmit(xdr: string) {
     const freighter = await import('@stellar/freighter-api');
     const { signedTxXdr, error: signError } = await freighter.signTransaction(xdr, {
-      networkPassphrase: 'Test SDF Network ; September 2015',
+      networkPassphrase: NETWORK,
       address: wallet.address!,
     });
     if (signError) throw new Error(signError.message || 'Signing rejected.');
@@ -100,7 +118,7 @@ export default function ArbitrationJurorsPage() {
     if (!wallet.address) return;
     const stakeAmount = BigInt(Math.round(Number(stakeInput) * 10_000_000));
     if (!Number.isFinite(Number(stakeInput)) || stakeAmount <= 0n) {
-      toast.error('Enter a valid stake amount.');
+      toast.error(t('errors.invalidStake'));
       return;
     }
     setTxLoading(true);
@@ -108,10 +126,10 @@ export default function ArbitrationJurorsPage() {
       const operator = parseStellarAddress(wallet.address);
       const xdr = await buildRegisterJurorTx({ operator, stakeAmount });
       await signAndSubmit(xdr);
-      toast.success('Registered as a juror.');
+      toast.success(t('toasts.registered'));
       await load();
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Transaction failed.');
+      toast.error(e instanceof Error ? e.message : t('errors.transactionFailed'));
     } finally {
       setTxLoading(false);
     }
@@ -126,12 +144,12 @@ export default function ArbitrationJurorsPage() {
       await signAndSubmit(xdr);
       toast.success(
         info?.deregisterRequestedAt
-          ? 'Stake withdrawn.'
-          : 'Deregistration requested — stake unlocks after the cooldown.',
+          ? t('toasts.stakeWithdrawn')
+          : t('toasts.deregistrationRequested'),
       );
       await load();
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Transaction failed.');
+      toast.error(e instanceof Error ? e.message : t('errors.transactionFailed'));
     } finally {
       setTxLoading(false);
     }
@@ -141,26 +159,22 @@ export default function ArbitrationJurorsPage() {
     if (!wallet.address) return;
     const choice = voteChoice[caseId];
     if (choice === undefined) {
-      toast.error('Pick a side before committing.');
+      toast.error(t('errors.pickSide'));
       return;
     }
     setTxLoading(true);
     try {
       const juror = parseStellarAddress(wallet.address);
       const salt = generateArbitrationSalt();
-      // Persisted locally so this browser can reveal it later — losing the
-      // salt means this vote can never be revealed and counted.
-      window.localStorage.setItem(
-        saltStorageKey(caseId, juror),
-        JSON.stringify({ vote: choice, salt: Array.from(salt) }),
-      );
+      // Persisted in localStorage + sessionStorage backup so this browser can reveal it later
+      saveStoredSalt(caseId, juror, JSON.stringify({ vote: choice, salt: Array.from(salt) }));
       const commitHash = await computeArbitrationCommitHash(choice, salt);
       const xdr = await buildCommitVoteTx({ juror, caseId, commitHash });
       await signAndSubmit(xdr);
-      toast.success('Vote committed. Come back during the reveal window to reveal it.');
+      toast.success(t('toasts.voteCommitted'));
       await load();
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Transaction failed.');
+      toast.error(e instanceof Error ? e.message : t('errors.transactionFailed'));
     } finally {
       setTxLoading(false);
     }
@@ -169,11 +183,9 @@ export default function ArbitrationJurorsPage() {
   async function handleReveal(caseId: number) {
     if (!wallet.address) return;
     const juror = parseStellarAddress(wallet.address);
-    const stored = window.localStorage.getItem(saltStorageKey(caseId, juror));
+    const stored = getStoredSalt(caseId, juror);
     if (!stored) {
-      toast.error(
-        "No locally-saved salt for this case/browser — the committed vote can't be revealed from here.",
-      );
+      toast.error(t('errors.noStoredSalt'));
       return;
     }
     setTxLoading(true);
@@ -186,10 +198,10 @@ export default function ArbitrationJurorsPage() {
         salt: new Uint8Array(salt),
       });
       await signAndSubmit(xdr);
-      toast.success('Vote revealed.');
+      toast.success(t('toasts.voteRevealed'));
       await load();
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Transaction failed.');
+      toast.error(e instanceof Error ? e.message : t('errors.transactionFailed'));
     } finally {
       setTxLoading(false);
     }
@@ -198,8 +210,8 @@ export default function ArbitrationJurorsPage() {
   if (!wallet.address) {
     return (
       <div className="max-w-4xl">
-        <h1 className="text-3xl font-bold mb-2">Arbitration Jurors</h1>
-        <p className="text-brand-muted text-sm">Connect your wallet to register as a juror.</p>
+        <h1 className="text-3xl font-bold mb-2">{t('title')}</h1>
+        <p className="text-brand-muted text-sm">{t('connectWallet')}</p>
       </div>
     );
   }
@@ -207,10 +219,8 @@ export default function ArbitrationJurorsPage() {
   if (notDeployed && !loading) {
     return (
       <div className="max-w-4xl">
-        <h1 className="text-3xl font-bold mb-2">Arbitration Jurors</h1>
-        <p className="text-brand-muted text-sm">
-          The arbitration contract isn&apos;t configured on this deployment yet.
-        </p>
+        <h1 className="text-3xl font-bold mb-2">{t('title')}</h1>
+        <p className="text-brand-muted text-sm">{t('notDeployed')}</p>
       </div>
     );
   }
@@ -220,46 +230,43 @@ export default function ArbitrationJurorsPage() {
   return (
     <div className="max-w-5xl space-y-8">
       <div>
-        <h1 className="text-3xl font-bold mb-2">Arbitration Jurors</h1>
-        <p className="text-brand-muted text-sm">
-          Stake to become eligible for random selection onto invoice dispute cases, then commit and
-          reveal your vote when selected.
-        </p>
+        <h1 className="text-3xl font-bold mb-2">{t('title')}</h1>
+        <p className="text-brand-muted text-sm">{t('subtitle')}</p>
       </div>
 
       <div className="p-6 bg-brand-card border border-brand-border rounded-2xl space-y-4">
-        <h2 className="text-xl font-bold">Your juror status</h2>
+        <h2 className="text-xl font-bold">{t('status.heading')}</h2>
         {loading ? (
           <Skeleton className="h-20 w-full rounded-xl" />
         ) : info ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
-              <p className="text-brand-muted text-xs">Stake</p>
+              <p className="text-brand-muted text-xs">{t('status.stake')}</p>
               <p className="font-semibold">{formatStake(info.stakeAmount)}</p>
             </div>
             <div>
-              <p className="text-brand-muted text-xs">Cases served</p>
+              <p className="text-brand-muted text-xs">{t('status.casesServed')}</p>
               <p className="font-semibold">{info.casesServed}</p>
             </div>
             <div>
-              <p className="text-brand-muted text-xs">Times slashed</p>
+              <p className="text-brand-muted text-xs">{t('status.timesSlashed')}</p>
               <p className={info.timesSlashed > 0 ? 'font-semibold text-red-400' : 'font-semibold'}>
                 {info.timesSlashed}
               </p>
             </div>
             <div>
-              <p className="text-brand-muted text-xs">Status</p>
+              <p className="text-brand-muted text-xs">{t('status.status')}</p>
               <p className="font-semibold">
                 {info.deregisterRequestedAt
-                  ? 'Deregistering'
+                  ? t('status.deregistering')
                   : info.isActive
-                    ? 'Active'
-                    : 'Inactive'}
+                    ? t('status.active')
+                    : t('status.inactive')}
               </p>
             </div>
           </div>
         ) : (
-          <p className="text-sm text-brand-muted">Not yet registered as a juror.</p>
+          <p className="text-sm text-brand-muted">{t('status.notRegistered')}</p>
         )}
 
         <div className="flex gap-3 pt-2">
@@ -270,7 +277,7 @@ export default function ArbitrationJurorsPage() {
                 min={0}
                 value={stakeInput}
                 onChange={(e) => setStakeInput(e.target.value)}
-                placeholder="Stake amount"
+                placeholder={t('stakeAmountPlaceholder')}
                 className="flex-1 bg-brand-dark border border-brand-border rounded-xl px-4 py-2.5 text-white placeholder-brand-muted focus:outline-none focus:border-brand-gold text-sm"
               />
               <button
@@ -278,7 +285,7 @@ export default function ArbitrationJurorsPage() {
                 disabled={txLoading || !!info}
                 className="px-5 py-2.5 bg-brand-gold text-brand-dark rounded-xl text-sm font-semibold hover:bg-brand-amber transition-colors disabled:opacity-50"
               >
-                {info ? 'Registered' : 'Register'}
+                {info ? t('registered') : t('register')}
               </button>
             </>
           ) : null}
@@ -288,19 +295,19 @@ export default function ArbitrationJurorsPage() {
               disabled={txLoading}
               className="px-5 py-2.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-sm font-semibold hover:bg-red-500/30 transition-colors disabled:opacity-50"
             >
-              {info.deregisterRequestedAt ? 'Withdraw stake' : 'Deregister'}
+              {info.deregisterRequestedAt ? t('withdrawStake') : t('deregister')}
             </button>
           )}
         </div>
       </div>
 
       <div className="space-y-4">
-        <h2 className="text-xl font-bold">Your assigned cases</h2>
+        <h2 className="text-xl font-bold">{t('cases.heading')}</h2>
         {loading ? (
           <Skeleton className="h-32 w-full rounded-2xl" />
         ) : cases.length === 0 ? (
           <div className="p-6 bg-brand-card border border-brand-border rounded-2xl text-center text-brand-muted text-sm">
-            No cases assigned yet.
+            {t('cases.empty')}
           </div>
         ) : (
           <div className="space-y-4">
@@ -316,8 +323,12 @@ export default function ArbitrationJurorsPage() {
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-brand-muted">Case #{c.id}</p>
-                      <p className="font-semibold">Invoice #{c.invoiceId}</p>
+                      <p className="text-sm text-brand-muted">
+                        {t('cases.caseNumber', { id: c.id })}
+                      </p>
+                      <p className="font-semibold">
+                        {t('cases.invoiceNumber', { id: c.invoiceId })}
+                      </p>
                     </div>
                     <span
                       className={`px-3 py-1 rounded-full text-xs font-semibold border ${STATUS_STYLES[c.status]}`}
@@ -328,7 +339,7 @@ export default function ArbitrationJurorsPage() {
 
                   {inCommitPhase && !vote?.hasCommitted && (
                     <div className="space-y-3 pt-3 border-t border-brand-border">
-                      <p className="text-sm text-brand-muted">Commit your vote:</p>
+                      <p className="text-sm text-brand-muted">{t('cases.commitPrompt')}</p>
                       <div className="flex gap-3">
                         <button
                           onClick={() => setVoteChoice((v) => ({ ...v, [c.id]: true }))}
@@ -338,7 +349,7 @@ export default function ArbitrationJurorsPage() {
                               : 'bg-green-500/10 text-green-400 border-green-500/20 hover:bg-green-500/20'
                           }`}
                         >
-                          Favor debtor
+                          {t('cases.favorDebtor')}
                         </button>
                         <button
                           onClick={() => setVoteChoice((v) => ({ ...v, [c.id]: false }))}
@@ -348,7 +359,7 @@ export default function ArbitrationJurorsPage() {
                               : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
                           }`}
                         >
-                          Favor SME
+                          {t('cases.favorSme')}
                         </button>
                       </div>
                       <button
@@ -356,7 +367,7 @@ export default function ArbitrationJurorsPage() {
                         disabled={txLoading}
                         className="w-full py-2.5 bg-brand-gold text-brand-dark rounded-xl text-sm font-semibold hover:bg-brand-amber transition-colors disabled:opacity-50"
                       >
-                        Commit vote
+                        {t('cases.commitVote')}
                       </button>
                     </div>
                   )}
@@ -369,12 +380,10 @@ export default function ArbitrationJurorsPage() {
                           disabled={txLoading}
                           className="w-full py-2.5 bg-brand-gold text-brand-dark rounded-xl text-sm font-semibold hover:bg-brand-amber transition-colors disabled:opacity-50"
                         >
-                          Reveal vote
+                          {t('cases.revealVote')}
                         </button>
                       ) : (
-                        <p className="text-sm text-brand-muted">
-                          Committed — reveal opens once the commit window closes.
-                        </p>
+                        <p className="text-sm text-brand-muted">{t('cases.awaitingReveal')}</p>
                       )}
                     </div>
                   )}

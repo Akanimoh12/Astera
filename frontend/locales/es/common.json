@@ -26,6 +26,21 @@
       "cancelled": "Cancelada",
       "expired": "Expirada"
     },
+    "view": {
+      "list": "Lista",
+      "pipeline": "Canal"
+    },
+    "pipeline": {
+      "needsAttention": "Necesitan atencion",
+      "noAttention": "Ninguna factura necesita atencion por ahora.",
+      "columns": {
+        "pending": "Pendiente",
+        "awaitingVerification": "En espera de verificacion",
+        "verified": "Verificada",
+        "funded": "Financiada",
+        "paid": "Pagada / completada"
+      }
+    },
     "sort": {
       "createdDesc": "Fecha de creacion (mas reciente)",
       "createdAsc": "Fecha de creacion (mas antigua)",
@@ -44,21 +59,6 @@
     "allLoaded": "Todas las facturas cargadas - {count} en total",
     "notifications": {
       "loadError": "No se pudieron cargar las facturas. Verifica que los contratos esten desplegados."
-    },
-    "view": {
-      "list": "Lista",
-      "pipeline": "Canal"
-    },
-    "pipeline": {
-      "needsAttention": "Necesitan atencion",
-      "noAttention": "Ninguna factura necesita atencion por ahora.",
-      "columns": {
-        "pending": "Pendiente",
-        "awaitingVerification": "En espera de verificacion",
-        "verified": "Verificada",
-        "funded": "Financiada",
-        "paid": "Pagada / completada"
-      }
     }
   },
   "Notifications": {
@@ -76,6 +76,12 @@
       "retryAttempt": "Intento {retryCount}/{maxRetries}...",
       "disconnectedTitle": "Billetera desconectada",
       "disconnectedDescription": "Tu billetera Freighter ya no esta conectada a este sitio. Vuelve a conectarla para continuar."
+    },
+    "networkMismatch": {
+      "title": "Incompatibilidad de red detectada",
+      "description": "Tu billetera Freighter está conectada a {walletNetwork}, pero esta aplicación usa {appNetwork}. Cambia de red en Freighter para continuar.",
+      "switchNetworks": "Cómo cambiar de red",
+      "dismiss": "Cerrar advertencia de incompatibilidad de red"
     },
     "toast": {
       "dismiss": "Cerrar notificacion"
@@ -138,6 +144,7 @@
       "yield": "Tasa de rendimiento",
       "defaults": "Morosidad",
       "analytics": "Analitica",
+      "revenue": "Ingresos",
       "monitoring": "Monitoreo",
       "kyc": "KYC / Lista blanca",
       "compliance": "Cumplimiento",
@@ -145,7 +152,9 @@
       "exchangeRates": "Tipos de cambio",
       "aging": "Informe de antiguedad",
       "oracles": "Red de oraculos",
-      "attestors": "Atestadores de credito"
+      "attestors": "Atestadores de credito",
+      "insurance": "Seguro",
+      "governance": "Gobernanza"
     },
     "layout": {
       "accessDeniedTitle": "Identificacion de administrador requerida",
@@ -217,6 +226,55 @@
       "loading": "Cargando...",
       "error": "Error al cargar los datos analiticos. Intentalo de nuevo."
     },
+    "revenue": {
+      "title": "Panel de ingresos del protocolo",
+      "description": "Ingresos por tarifas de factoraje en el tiempo, estado del tesoro y metricas de volumen financiado — todo obtenido del estado en cadena.",
+      "lastUpdated": "Ultima actualizacion: {time}",
+      "loading": "Cargando...",
+      "refresh": "Actualizar datos",
+      "error": "Error al cargar los datos de ingresos. Intentalo de nuevo.",
+      "sectionRevenue": "Resumen de ingresos",
+      "cumulativeFees": "Tarifas acumuladas",
+      "cumulativeFeesDesc": "Tarifas del protocolo recaudadas en total",
+      "pendingFees": "Tarifas pendientes",
+      "pendingFeesDesc": "Tarifas no reclamadas en el contrato del pool",
+      "avgFeePerInvoice": "Tarifa prom. / factura",
+      "avgFeePerInvoiceDesc": "En todas las facturas financiadas",
+      "feeRate": "Tasa de tarifa",
+      "feeRateDesc": "Tarifa de factoraje actual",
+      "sectionPerToken": "Desglose por token",
+      "tableToken": "Token",
+      "tableCumulative": "Tarifas acumuladas",
+      "tablePending": "Pendiente",
+      "tableTreasury": "Saldo del tesoro",
+      "sectionTreasury": "Estado del tesoro",
+      "treasuryBalances": "Saldos del tesoro",
+      "treasuryNotConfigured": "Aun no hay ninguna direccion de tesoro configurada en el contrato del pool.",
+      "noTreasuryData": "Aun no hay datos del tesoro disponibles.",
+      "treasuryAddressLabel": "Tesoro:",
+      "withdrawals": "Retiros de tarifas",
+      "lastWithdrawal": "Ultimo retiro",
+      "lastWithdrawalDate": "Fecha",
+      "toTreasury": "Al tesoro",
+      "noWithdrawals": "Aun no se han registrado retiros de tarifas.",
+      "treasuryPollNote": "Los saldos del tesoro se actualizan automaticamente cada 30 segundos.",
+      "monthlyRevenueTitle": "Ingresos mensuales por tarifas",
+      "weeklyRevenueTitle": "Ingresos semanales por tarifas",
+      "sectionVolume": "Metricas de volumen",
+      "totalFundedVolume": "Volumen total financiado",
+      "totalFundedVolumeDesc": "Volumen total de facturas financiadas",
+      "activeToday": "Activo hoy",
+      "activeTodayDesc": "Financiado en las ultimas 24 horas",
+      "activeWeek": "Activo esta semana",
+      "activeWeekDesc": "Financiado en los ultimos 7 dias",
+      "activeMonth": "Activo este mes",
+      "activeMonthDesc": "Financiado en los ultimos 30 dias",
+      "uniqueBorrowers": "Prestatarios unicos",
+      "uniqueBorrowersDesc": "PYMES con facturas financiadas",
+      "uniqueLenders": "Prestamistas unicos",
+      "uniqueLendersDesc": "Direcciones con depositos en el pool",
+      "dataNote": "Las cifras de ingresos reflejan el estado en cadena y los eventos del pool. Las series historicas se derivan de los totales acumulados actuales, y las cifras derivadas de eventos (ultimo retiro, prestamistas unicos) cubren los ultimos 30 dias de actividad; un almacen de series temporales completo llegara con el indexador de eventos."
+    },
     "invoices": {
       "titlePending": "Facturas pendientes",
       "titleFunding": "Cola de facturas verificadas",
@@ -273,6 +331,12 @@
       "adminNotConnected": "Billetera de administrador no conectada.",
       "approvedInvoice": "La factura #{id} ha sido aprobada para cofinanciamiento.",
       "defaultedInvoice": "La factura #{id} ha sido marcada como MOROSA.",
+      "modalApproveTitle": "Aprobar factura #{id}",
+      "modalApproveDescription": "Aprobar y financiar la factura #{id} por {amount}. Esto iniciara el cofinanciamiento desde el pool de liquidez.",
+      "modalDisputeTitle": "Marcar factura #{id} como en disputa",
+      "modalDisputeDescription": "Marcar la factura #{id} como en disputa. Esto pausara todas las actividades de financiacion y marcara la factura para revision manual.",
+      "modalVerifyTitle": "Verificar factura #{id}",
+      "modalVerifyDescription": "Verificar la factura #{id} como autentica. Esto confirma los detalles de la factura y permite el financiamiento.",
       "unknownError": "Error desconocido",
       "approveFailed": "Error al aprobar la factura."
     },
@@ -652,6 +716,51 @@
       "validIdRequired": "Ingresa un ID de atestacion valido.",
       "lookupFailed": "Error al buscar la atestacion.",
       "transactionFailed": "Transaccion fallida."
+    },
+    "governance": {
+      "title": "Propuestas de gobernanza",
+      "description": "Crear, votar y ejecutar propuestas de gobernanza para cambios de parametros del protocolo.",
+      "createProposal": "Crear propuesta",
+      "totalProposals": "Total de propuestas",
+      "activeProposals": "Activas",
+      "passedProposals": "Aprobadas",
+      "executedProposals": "Ejecutadas",
+      "proposals": "Propuestas",
+      "loading": "Cargando propuestas...",
+      "noProposals": "No se encontraron propuestas.",
+      "loadFailed": "Error al cargar las propuestas.",
+      "connectWallet": "Conecta tu billetera.",
+      "voteSuccess": "Voto registrado correctamente.",
+      "voteFailed": "Error al registrar el voto.",
+      "executeSuccess": "Propuesta ejecutada correctamente.",
+      "executeFailed": "Error al ejecutar la propuesta.",
+      "statusActive": "Activa",
+      "statusPassed": "Aprobada",
+      "statusRejected": "Rechazada",
+      "statusExecuted": "Ejecutada",
+      "statusCancelled": "Cancelada",
+      "statusExpired": "Expirada",
+      "categoryParameterChange": "Cambio de parametro",
+      "categoryTreasury": "Tesoro",
+      "categoryCritical": "Critica",
+      "proposer": "Proponente",
+      "created": "Creada",
+      "target": "Objetivo",
+      "for": "A favor",
+      "against": "En contra",
+      "quorum": "Quorum",
+      "pass": "Aprobar",
+      "voteFor": "Votar a favor",
+      "voteAgainst": "Votar en contra",
+      "execute": "Ejecutar",
+      "createProposalTitle": "Crear propuesta de gobernanza",
+      "createProposalDesc": "La creacion de propuestas se implementara una vez que el contrato de gobernanza este desplegado y configurado.",
+      "proposalCreationNotImplemented": "La creacion de propuestas requiere que el contrato de gobernanza este desplegado y configurado. Esta funcionalidad estara disponible tras el despliegue del contrato.",
+      "actionSetPoolYield": "Establecer rendimiento del pool a {value} bps",
+      "actionSetPoolTreasury": "Establecer tesoro del pool en {address}",
+      "actionSetInvoiceGracePeriod": "Establecer periodo de gracia de facturas en {days} dias",
+      "actionSetOracleRegistryInvoiceContract": "Establecer contrato de factura del registro de oraculos en {address}",
+      "actionSetComplianceRescreeningInterval": "Establecer intervalo de revision de cumplimiento en {secs} segundos"
     }
   }
 }

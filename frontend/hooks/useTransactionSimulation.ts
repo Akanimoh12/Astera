@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import type { FeeEstimate } from '@/lib/simulateFee';
 
 export type SimulationStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -16,25 +16,28 @@ export function useTransactionSimulation(
   const [status, setStatus] = useState<SimulationStatus>('idle');
   const [feeEstimate, setFeeEstimate] = useState<FeeEstimate | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const simulateFnRef = useRef(simulateFn);
-  simulateFnRef.current = simulateFn;
-
   useEffect(() => {
-    if (!enabled) {
-      setStatus('idle');
-      setFeeEstimate(null);
-      setError(null);
-      return;
-    }
-
     let cancelled = false;
+
+    if (!enabled) {
+      queueMicrotask(() => {
+        if (!cancelled) {
+          setStatus('idle');
+          setFeeEstimate(null);
+          setError(null);
+        }
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
 
     async function run() {
       setStatus('loading');
       setError(null);
 
       try {
-        const fn = simulateFnRef.current();
+        const fn = simulateFn();
         if (!fn) {
           if (!cancelled) setStatus('idle');
           return;
@@ -57,7 +60,7 @@ export function useTransactionSimulation(
     return () => {
       cancelled = true;
     };
-  }, [enabled]);
+  }, [enabled, simulateFn]);
 
   return { status, feeEstimate, error };
 }

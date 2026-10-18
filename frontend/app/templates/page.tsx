@@ -12,8 +12,10 @@ export default function TemplatesPage() {
   const [templates, setTemplates] = useState<InvoiceTemplate[]>([]);
   useEffect(() => setTemplates(loadInvoiceTemplates()), []);
   const remove = (id: string) => {
-    deleteInvoiceTemplate(id);
-    setTemplates(loadInvoiceTemplates());
+    if (typeof window !== 'undefined' && window.confirm('Are you sure you want to delete this invoice template?')) {
+      deleteInvoiceTemplate(id);
+      setTemplates(loadInvoiceTemplates());
+    }
   };
   return (
     <main className="min-h-screen px-6 pb-16 pt-24">
