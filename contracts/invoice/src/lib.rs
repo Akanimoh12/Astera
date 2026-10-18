@@ -2754,6 +2754,12 @@ impl InvoiceContract {
         pool.require_auth();
         require_not_paused(&env);
         bump_instance(&env);
+        
+        // Validate amount is positive
+        if amount <= 0 {
+            panic_with_error!(&env, InvoiceError::InvalidAmount);
+        }
+        
         let authorized_pool: Address = env
             .storage()
             .instance()
@@ -2787,6 +2793,13 @@ impl InvoiceContract {
         env.storage()
             .persistent()
             .set(&DataKey::InvoiceFunding(id), &new_funded);
+        
+        // Emit funding event
+        env.events().publish(
+            (symbol_short!("invoice"), symbol_short!("funded")),
+            (id, pool, amount, new_funded),
+        );
+        
         new_funded
     }
 

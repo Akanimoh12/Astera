@@ -557,7 +557,7 @@ fn require_not_paused(env: &Env) {
 
 // #1363: ledger TTL constants. Payment history, SME score data,
 // attestations and scoring config live in persistent storage and must
-// outlive short default TTLs - a borrower's on-chain credit history is
+// outlive short default TTLs — a borrower's on-chain credit history is
 // the protocol's core value ("Every paid invoice builds an on-chain
 // credit history") and must never be archived into a default/base score.
 // 1 year matches the invoice contract's ACTIVE_INVOICE_TTL.
