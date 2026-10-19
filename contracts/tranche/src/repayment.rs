@@ -115,9 +115,13 @@ pub fn allocate_loss(env: &Env, token: Address, invoice_id: u64, shortfall: i128
         }
     }
 
-    // Remove deployed amounts from this invoice
-    pool.senior.deployed -= exposure.senior_deployed;
-    pool.junior.deployed -= exposure.junior_deployed;
+    // Remove deployed amounts from this invoice (only if no loss was charged against deployed capital)
+    if junior_loss == 0 {
+        pool.junior.deployed -= exposure.junior_deployed;
+    }
+    if senior_loss == 0 {
+        pool.senior.deployed -= exposure.senior_deployed;
+    }
 
     env.storage()
         .instance()

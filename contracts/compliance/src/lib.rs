@@ -385,6 +385,12 @@ impl ComplianceContract {
     }
 
     pub fn is_screener(env: Env, address: Address) -> bool {
+        let admin: Option<Address> = env.storage().instance().get(&DataKey::Admin);
+        if let Some(admin_addr) = admin {
+            if address == admin_addr {
+                return true;
+            }
+        }
         env.storage().persistent().has(&DataKey::Screener(address))
     }
 
@@ -495,16 +501,23 @@ impl ComplianceContract {
 
         let now = env.ledger().timestamp();
 
+        // Check if caller is admin
+        let admin: Option<Address> = env.storage().instance().get(&DataKey::Admin);
+        let is_admin = admin.as_ref().map_or(false, |a| a == &screener);
+
         // Enforce rescreening interval: screener cannot rescreen same subject within interval
+        // Admin can bypass this cooldown for urgent corrections
         let last_screened_key = DataKey::LastScreenedAt(screener.clone(), address.clone());
-        if let Some(last_at) = env
-            .storage()
-            .instance()
-            .get::<DataKey, u64>(&last_screened_key)
-        {
-            let interval = Self::get_rescreening_interval(env.clone());
-            if now < last_at.saturating_add(interval) {
-                return Err(ComplianceError::RescreeningTooSoon);
+        if !is_admin {
+            if let Some(last_at) = env
+                .storage()
+                .instance()
+                .get::<DataKey, u64>(&last_screened_key)
+            {
+                let interval = Self::get_rescreening_interval(env.clone());
+                if now < last_at.saturating_add(interval) {
+                    return Err(ComplianceError::RescreeningTooSoon);
+                }
             }
         }
         let effective_expires = if expires_at == 0 {
