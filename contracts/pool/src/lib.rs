@@ -3629,6 +3629,11 @@ impl FundingPool {
                 SETTLEMENT_COLLATERAL_TTL,
                 SETTLEMENT_COLLATERAL_TTL,
             );
+
+            // #1475: Transfer the seized collateral token to the auction contract
+            let token_client = token::Client::new(&env, &deposit.token);
+            token_client.transfer(&env.current_contract_address(), &caller, &deposit.amount);
+
             // #1036: matches execute_seize_collateral's own seizure event
             // (col_seiz_default/liq_seized), which also doesn't carry token —
             // this seizure record mirrors that established shape.
